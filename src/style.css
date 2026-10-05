@@ -93,6 +93,11 @@ h3 { font-size: 18px; line-height: 24px; font-weight: 600; color: var(--ink); ma
 textarea:focus-visible { outline: 2px solid var(--brand); outline-offset: 4px; }
 .repair-fields textarea::placeholder { color: var(--muted); }
 .service-picker { position: relative; }
+.customer-card { margin-bottom: 24px; }
+.customer-picker { position: relative; }
+.customer-picker input { display: block; width: 100%; min-height: 48px; margin-top: 8px; padding: 12px; border: 1px solid #6B6870; border-radius: 12px; font-size: 16px; line-height: 22px; background: var(--surface); color: #232326; }
+.customer-picker input::placeholder { color: var(--muted); }
+.customer-picker .customer-options { top: 100%; margin-top: 8px; width: 100%; }
 .service-picker input { font-size: 13px; line-height: 18px; padding: 12px 8px; }
 .selected-service { font-size: 13px; line-height: 18px; overflow-wrap: anywhere; color: var(--ink); }
 .service-options { position: absolute; top: 88px; right: 0; width: min(302px, calc(100vw - 88px)); max-height: 260px; overflow-y: auto; z-index: 2; background: var(--surface); border: 1px solid #6B6870; border-radius: 12px; padding: 8px; }

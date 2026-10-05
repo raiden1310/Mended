@@ -1,5 +1,6 @@
 import { REPAIR_SERVICES, searchServices } from '../shared/repair-catalog.js';
 import { startSplash } from './splash.js';
+import { customerCard, bindCustomer } from './customer-picker.js';
 import { ConvexHttpClient } from 'convex/browser';
 import { api } from '../convex/_generated/api';
 import '@fontsource/inter/latin-400.css';
@@ -17,6 +18,8 @@ let repairId = 0;
 let cameraRequest = 0;
 let estimateRequest = 0;
 let estimateTimer;
+state.customer = null;
+state.customerSearch = '';
 const usd = amount => new Intl.NumberFormat('en-US', {style:'currency',currency:'USD'}).format(amount);
 const escape = (text) => String(text).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 const options = (values, selected) => values.map((value) => `<option${value === selected ? ' selected' : ''}>${escape(value)}</option>`).join('');
@@ -312,6 +315,7 @@ function reviewScreen() {
   const details = state.details;
   return `<section class="intro"><h1>Review Estimate</h1><p>Review the suggested details and correct anything that needs a closer look.</p></section>
     ${state.confirmed ? '<p class="notice success" role="status">Estimate confirmed. These details stay here until you reload or start another piece.</p>' : ''}
+    ${customerCard(state)}
     <form id="item-form" class="card details">
       <div class="section-heading"><h2>Item information</h2>${details.metals.length < 3 ? '<button type="button" id="add-metal" class="text-button">Add metal</button>' : ''}</div><div class="item-fields"><label class="field">Item type<select id="item-type">${options(ITEM_TYPES, details.itemType)}</select></label>
       ${details.metals.map((metal, index) => `<div class="metal-group"><label class="field">Metal${details.metals.length > 1 ? ` ${index + 1}` : ''}<select data-metal="${index}">${options(METALS, metal.metal)}</select></label>
@@ -334,6 +338,7 @@ function bindReview() {
     const footer = document.querySelector('.actions');
     footer.innerHTML = `<button type="submit" form="item-form" class="primary" ${state.repairBusy ? 'disabled' : ''}>Confirm estimate</button>`;
   };
+  bindCustomer({ state, searchCustomers: text => client.query(api.customers.search, { text }), markChanged, render });
   document.querySelector('#item-type').addEventListener('change', (event) => { state.details.itemType = event.target.value; markChanged(); });
   document.querySelectorAll('[data-metal]').forEach((select) => select.addEventListener('change', () => {
     state.details.metals[Number(select.dataset.metal)].metal = select.value;
@@ -438,14 +443,14 @@ function bindReview() {
     const reviewArgs={photoCount:state.photos.length,repairs:state.repairs.map(({damage,serviceCode,photo})=>({damage,serviceCode,photo}))};
     const amounts=estimateArgs();
     const signature=value=>JSON.stringify(value,(_key,entry)=>typeof entry==='number' && !Number.isFinite(entry) ? 'invalid amount' : entry);
-    const snapshot=signature([reviewArgs,amounts]);
+    const snapshot=signature([reviewArgs,amounts,state.customer?.id ?? null]);
     try {
       const result = await client.action(api.itemAnalysis.reviewRepairs, reviewArgs);
       if (!result.ok) state.error=result.message;
       else {
         const estimate=await client.query(api.estimates.calculate,amounts);
         const currentReview={photoCount:state.photos.length,repairs:state.repairs.map(({damage,serviceCode,photo})=>({damage,serviceCode,photo}))};
-        if (snapshot!==signature([currentReview,estimateArgs()])) state.error='The estimate changed while checking. Review it and confirm again.';
+        if (snapshot!==signature([currentReview,estimateArgs(),state.customer?.id ?? null])) state.error='The estimate changed while checking. Review it and confirm again.';
         else if (estimate.complete) { state.confirmed = true; state.estimate=estimate; state.error = ''; }
         else state.error='Choose all services and enter any missing prices before confirming.';
       }
@@ -453,7 +458,7 @@ function bindReview() {
     render(); window.scrollTo(0, 0);
   });
   document.querySelector('#back').addEventListener('click', () => { state.screen = 'capture'; state.error = ''; render(); window.scrollTo(0, 0); });
-  document.querySelector('#new-piece')?.addEventListener('click', () => { state.rush=false; state.rhodium=false; state.estimate=null; state.photos = []; state.details = null; state.repairs = []; state.assessment = null; state.repairError = ''; state.repairPhotosChanged = false; state.screen = 'capture'; state.confirmed = false; state.error = ''; render(); window.scrollTo(0, 0); });
+  document.querySelector('#new-piece')?.addEventListener('click', () => { state.customer=null; state.customerSearch=''; state.rush=false; state.rhodium=false; state.estimate=null; state.photos = []; state.details = null; state.repairs = []; state.assessment = null; state.repairError = ''; state.repairPhotosChanged = false; state.screen = 'capture'; state.confirmed = false; state.error = ''; render(); window.scrollTo(0, 0); });
 }
 
 window.addEventListener('pagehide', stopCamera);
