@@ -32,7 +32,7 @@ function startNewPiece() {
 const usd = amount => new Intl.NumberFormat('en-US', {style:'currency',currency:'USD'}).format(amount);
 const escape = (text) => String(text).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 const options = (values, selected) => values.map((value) => `<option${value === selected ? ' selected' : ''}>${escape(value)}</option>`).join('');
-const cameraIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M8 6l1-3h6l1 3h3a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V9a3 3 0 0 1 3-3z"/><circle cx="12" cy="13" r="5"/><circle cx="19" cy="9" r=".8" fill="currentColor" stroke="none"/></svg>';
+const cameraIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9V8a3 3 0 0 1 3-3h2l2-3h5l2 3h2a3 3 0 0 1 3 3v7M3 16v2a3 3 0 0 0 3 3h10"/><circle cx="12" cy="12" r="4"/><circle cx="21" cy="20" r="2.5" fill="currentColor" stroke="none"/></svg>';
 
 function photoStrip(editable) {
   return `<div class="photos" aria-label="Captured photos">${state.photos.map((photo, index) => `<figure class="photo">

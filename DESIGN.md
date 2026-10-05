@@ -99,3 +99,5 @@ Capture card (approved 5 Oct): The whole camera card is the Take photo action an
 Capture card copy (approved 5 Oct): Add “Click here to begin intake” beneath the focus/light guidance inside the same clickable card, using the same font, size, weight, and color.
 
 Header (approved 5 Oct): Replace the Mended text with the supplied design/logo/svg/mended_horizontal_full-color.svg logo, preserving its proportions. Label the first page Repair intake.
+
+Capture icon (approved 5 Oct): Use the latest supplied scan-style camera outline: open sides, circular lens, and a solid dot at the lower right. Keep the existing icon size and color.
