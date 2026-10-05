@@ -229,3 +229,8 @@ textarea:focus-visible { outline: 2px solid var(--brand); outline-offset: 4px; }
 .signature-sheet:focus { outline: none; }
 .sheet-handle:focus-visible { outline: none; }
 .sheet-handle:focus-visible span { outline: 2px solid var(--brand); outline-offset: 4px; }
+
+.service-metals { margin: 24px 0; }
+.service-metals legend { font-size: 14px; line-height: 20px; font-weight: 500; color: #232326; }
+.metal-choice { display: flex; align-items: center; gap: 8px; padding: 12px; border-radius: 12px; background: #F7F5F1; font-size: 14px; line-height: 20px; min-width: 0; overflow-wrap: anywhere; }
+.metal-choice input { flex-shrink: 0; width: 18px; height: 18px; min-height: 18px; margin: 0; padding: 0; accent-color: var(--brand); }

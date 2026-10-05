@@ -1046,3 +1046,22 @@ export function catalogPrice(serviceCode, metals) {
   const availability = amount !== null ? 'priced' : basis ? 'not_offered' : unknown ? 'confirm_metal' : 'unsupported_metal';
   return { amount, currency: 'USD', basis, unit: service.unit, availability };
 }
+
+// Every service is priced against the metals explicitly chosen for that repair.
+export function serviceMetalIndexes(metals, indexes = []) {
+  if (!Array.isArray(metals) || metals.length < 1 || metals.length > 3) throw new Error('Use between 1 and 3 metals.');
+  if (!Array.isArray(indexes) || indexes.length > metals.length || new Set(indexes).size !== indexes.length || indexes.some(index => !Number.isInteger(index) || index < 0 || index >= metals.length)) throw new Error('Choose existing metals once per service.');
+  return metals.length === 1 ? [0] : [...indexes].sort((a,b)=>a-b);
+}
+
+export function serviceCatalogPrice(serviceCode, metals, indexes = []) {
+  const selected = serviceMetalIndexes(metals, indexes);
+  const first = catalogPrice(serviceCode, [metals[selected[0] ?? 0]]);
+  if (!selected.length) return {...first, amount:null, basis:null, availability:/** @type {const} */ ('select_metals')};
+  const prices = selected.map(index => catalogPrice(serviceCode, [metals[index]]));
+  const missing = prices.find(price => price.amount === null);
+  if (missing) return {...missing, basis: prices.map(price=>price.basis).filter(Boolean).join(' + ') || null};
+  const sum = prices.reduce((total, price) => total + price.amount, 0);
+  return {...first, amount:Math.round(sum * (selected.length > 1 ? 0.8 : 1) * 100) / 100,
+    basis:prices.map((price,index)=>`${metals[selected[index]].metal} ${price.basis}`).join(' + ')};
+}

@@ -24,3 +24,22 @@ test('money, catalog choices and fee eligibility are checked on the server',()=>
  assert.equal(calculateEstimate({...input,repairs:[]}).total,null);
  assert.throws(()=>calculateEstimate({...input,repairs:Array(13).fill(line('BG-03'))}));
 });
+test('selected service metals use full price for one and 80% of the sum for two or three',()=>{
+ const mixed=[{metal:'Yellow gold',purity:'14K / 585'},{metal:'Rose gold',purity:'18K / 750'},{metal:'Platinum',purity:'950 platinum'}];
+ const input={metals:mixed,rush:false,rhodium:false};
+ const repair={...line('SZ-01'),metalIndexes:[0]};
+ assert.equal(calculateEstimate({...input,repairs:[repair]}).total,60);
+ assert.equal(calculateEstimate({...input,repairs:[{...repair,metalIndexes:[0,1],extra:12.34}]}).total,117.94);
+ assert.equal(calculateEstimate({...input,repairs:[{...repair,metalIndexes:[0,1,2]}]}).total,249.6);
+ assert.equal(calculateEstimate({...input,repairs:[{...repair,metalIndexes:[],override:50}]}).complete,false);
+ assert.equal(calculateEstimate({...input,repairs:[{...repair,metalIndexes:[0,1],override:90,extra:10}]}).total,100);
+ for(const metalIndexes of [[0,0],[-1],[3],[0.5]]) assert.throws(()=>calculateEstimate({...input,repairs:[{...repair,metalIndexes}]}));
+ assert.equal(calculateEstimate({...input,metals:[mixed[0],{metal:'Rose gold',purity:'Unknown'}],repairs:[{...repair,metalIndexes:[0,1]}]}).complete,false);
+ assert.equal(calculateEstimate({...input,metals:[mixed[0]],repairs:[{...repair,metalIndexes:[]}]}).total,60);
+});
+test('mixed-metal prices round once to cents and never substitute missing catalog rates',()=>{
+ const mixed=[{metal:'Yellow gold',purity:'14K / 585'},{metal:'Rose gold',purity:'24K / 999'}];
+ const input={metals:mixed,rush:true,rhodium:false};
+ assert.equal(calculateEstimate({...input,repairs:[{...line('PL-02'),metalIndexes:[0,1]}]}).total,54.3);
+ assert.equal(calculateEstimate({...input,repairs:[{...line('SZ-05'),metalIndexes:[0,1]}]}).complete,false);
+});

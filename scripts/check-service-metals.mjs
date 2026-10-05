@@ -1,0 +1,23 @@
+// Development-only check with a fictional customer and three supplied, resized jewelry JPEGs.
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {randomUUID} from 'node:crypto';
+import {ConvexHttpClient} from 'convex/browser';
+import {api} from '../convex/_generated/api.js';
+const paths=process.argv.slice(2);
+if(paths.length!==3)throw new Error('Pass three resized JPEG paths; the third is the hallmark.');
+const client=new ConvexHttpClient('https://cool-hawk-741.convex.cloud');
+const [customer]=await client.query(api.customers.search,{text:'Olivia'});
+assert.ok(customer);
+const metals=[{metal:'Yellow gold',purity:'14K / 585',hallmark:'585'},{metal:'Rose gold',purity:'18K / 750',hallmark:'750'}];
+const repair={damage:'Bent band',serviceCode:'SZ-01',photo:1,metalIndexes:[0,1],override:null,extra:12.34};
+const args={requestId:randomUUID(),customerId:customer.id,details:{itemType:'Ring',metals,stones:['Unknown']},repairs:[repair],photos:paths.map((path,index)=>({data:`data:image/jpeg;base64,${readFileSync(path).toString('base64')}`,hallmark:index===2})),rush:false,rhodium:false,issuedDate:new Date().toISOString().slice(0,10)};
+await assert.rejects(client.action(api.tickets.create,{...args,repairs:[{...repair,metalIndexes:[]}]}));
+await assert.rejects(client.query(api.repairPrices.get,{serviceCode:repair.serviceCode,metals:metals.map(({metal,purity})=>({metal,purity})),metalIndexes:[0,0]}));
+const id=await client.action(api.tickets.create,args);
+const ticket=await client.query(api.tickets.get,{id});
+assert.deepEqual(ticket.repairs[0].metalIndexes,[0,1]);
+assert.equal(ticket.repairs[0].amount,105.6);
+assert.equal(ticket.repairs[0].extra,12.34);
+assert.equal(ticket.total,117.94);
+console.log('Passed: Convex rejects missing/duplicate metal choices; ticket saves both metals, $105.60 service price and $117.94 total.');

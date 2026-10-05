@@ -188,16 +188,17 @@ function priceText(repair) {
   if (!repair.serviceCode) return 'Select a service to see its price.';
   if (!repair.price) return repair.priceError || 'Fetching catalog price…';
   if (repair.price.amount === null) {
+    if (repair.price.availability === 'select_metals') return 'Select the metal(s) being repaired to see the price.';
     if (repair.price.availability === 'not_offered') return `This service is not offered for ${escape(repair.price.basis)} in the catalog. Enter a price only if the repair can be performed.`;
     return 'No catalog price for this metal and purity. Enter the confirmed price.';
   }
-  return `Catalog: ${usd(repair.price.amount)} · ${escape(repair.price.basis)} · ${escape(repair.price.unit)}. ${repair.override != null ? 'Associate price entered.' : 'Typical base price.'}`;
+  return `Catalog: ${usd(repair.price.amount)} · ${escape(repair.price.basis)} · ${escape(repair.price.unit)}. ${repair.override != null ? 'Associate price entered.' : 'Typical base price.'}${(repair.metalIndexes?.length ?? 0) > 1 ? ' 80% of the summed metal prices.' : ''}`;
 }
 
 function estimateArgs() {
   return {
     metals: state.details.metals.map(({metal,purity})=>({metal,purity})),
-    repairs: state.repairs.map(repair=>({serviceCode:repair.serviceCode,override:repair.override ?? null,extra:repair.extra ?? 0})),
+    repairs: state.repairs.map(repair=>({serviceCode:repair.serviceCode,metalIndexes:state.details.metals.length === 1 ? [0] : (repair.metalIndexes ?? []),override:repair.override ?? null,extra:repair.extra ?? 0})),
     rush:state.rush,rhodium:state.rhodium,
   };
 }
@@ -253,7 +254,7 @@ function refreshPrices() {
   const metals = state.details.metals.map(({ metal, purity }) => ({ metal, purity }));
   for (const repair of state.repairs) {
     if (!repair.serviceCode) continue;
-    const key = JSON.stringify([repair.serviceCode, metals]);
+    const key = JSON.stringify([repair.serviceCode, metals, repair.metalIndexes ?? []]);
     if (repair.priceKey === key) continue;
     repair.priceKey = key; repair.price = null; repair.priceError = '';
     const update = () => {
@@ -264,7 +265,7 @@ function refreshPrices() {
       refreshEstimate();
     };
     update();
-    client.query(api.repairPrices.get, { serviceCode: repair.serviceCode, metals }).then(price => {
+    client.query(api.repairPrices.get, { serviceCode: repair.serviceCode, metals, metalIndexes:repair.metalIndexes ?? [] }).then(price => {
       if (repair.priceKey !== key) return;
       repair.price = price; update();
     }).catch(() => {
@@ -290,6 +291,7 @@ function servicesCard() {
       <div class="service-picker" data-picker="${repair.id}"><label class="field" for="service-${repair.id}">Repair service</label><input id="service-${repair.id}" type="search" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="service-options-${repair.id}" autocomplete="off" placeholder="Search services" />
       <div id="service-options-${repair.id}" class="service-options" role="listbox" aria-label="Repair services" hidden></div>
       <p class="selected-service">${repair.serviceCode ? escape(REPAIR_SERVICES.find(service => service.code === repair.serviceCode)?.name || '') : 'Choose a service from the list.'}</p></div></div>
+      ${state.details.metals.length > 1 ? `<fieldset class="service-metals"><legend>Metal(s) being repaired</legend><div class="stones">${state.details.metals.map((metal,metalIndex)=>`<label class="metal-choice"><input type="checkbox" data-repair-metal="${repair.id}" value="${metalIndex}" ${(repair.metalIndexes ?? []).includes(metalIndex) ? 'checked' : ''} />${escape(metal.metal)} · ${escape(metal.purity)}</label>`).join('')}</div><p class="helper">Choose one or more. Multiple metals use 80% of the sum of their service prices.</p></fieldset>` : ''}
       <div class="price-fields">
         <label class="field">Service price (USD)<input type="number" inputmode="decimal" min="0" max="1000000" step="0.01" data-amount="${repair.id}" aria-label="Service price ${index+1} (USD)" value="${repair.override ?? repair.price?.amount ?? ''}" placeholder="Enter price" ${repair.serviceCode ? '' : 'disabled'} /></label>
         <label class="field">Additional fee (USD)<input type="number" inputmode="decimal" min="0" max="1000000" step="0.01" data-extra="${repair.id}" aria-label="Additional fee ${index+1} (USD)" value="${repair.extra ?? 0}" /></label>
@@ -335,19 +337,22 @@ function bindReview() {
   document.querySelectorAll('[data-metal]').forEach((select) => select.addEventListener('change', () => {
     state.details.metals[Number(select.dataset.metal)].metal = select.value;
     state.details.metals[Number(select.dataset.metal)].purity = 'Unknown';
+    state.repairs.forEach(repair=>{repair.override=null;});
     state.confirmed = false; render();
   }));
-  document.querySelectorAll('[data-purity]').forEach((select) => select.addEventListener('change', () => { state.details.metals[Number(select.dataset.purity)].purity = select.value; markChanged(); refreshPrices(); }));
-  document.querySelector('#add-metal')?.addEventListener('click', () => { state.details.metals.push({ metal: 'Unknown', purity: 'Unknown', hallmark: '' }); state.confirmed = false; render(); });
-  document.querySelectorAll('[data-remove-metal]').forEach((button) => button.addEventListener('click', () => { state.details.metals.splice(Number(button.dataset.removeMetal), 1); state.confirmed = false; render(); }));
-  document.querySelectorAll('.stones input').forEach((input) => input.addEventListener('change', () => {
+  document.querySelectorAll('[data-purity]').forEach((select) => select.addEventListener('change', () => { state.details.metals[Number(select.dataset.purity)].purity = select.value; state.repairs.forEach(repair=>{repair.override=null;}); markChanged(); render(); }));
+  document.querySelector('#add-metal')?.addEventListener('click', () => { state.details.metals.push({ metal: 'Unknown', purity: 'Unknown', hallmark: '' }); state.repairs.forEach(repair=>{repair.metalIndexes=[];repair.override=null;}); state.confirmed = false; render(); });
+  document.querySelectorAll('[data-remove-metal]').forEach((button) => button.addEventListener('click', () => { const removed=Number(button.dataset.removeMetal);
+    state.details.metals.splice(removed, 1);
+    state.repairs.forEach(repair=>{repair.metalIndexes=(repair.metalIndexes ?? []).filter(index=>index!==removed).map(index=>index>removed?index-1:index);repair.override=null;}); state.confirmed = false; render(); }));
+  document.querySelectorAll('.stone input').forEach((input) => input.addEventListener('change', () => {
     let selected = new Set(state.details.stones);
     if (input.checked) {
       if (['Unknown', 'None visible'].includes(input.value)) selected = new Set([input.value]);
       else { selected.delete('Unknown'); selected.delete('None visible'); selected.add(input.value); }
     } else selected.delete(input.value);
     state.details.stones = selected.size ? [...selected] : ['Unknown'];
-    document.querySelectorAll('.stones input').forEach((checkbox) => { checkbox.checked = state.details.stones.includes(checkbox.value); });
+    document.querySelectorAll('.stone input').forEach((checkbox) => { checkbox.checked = state.details.stones.includes(checkbox.value); });
     markChanged();
   }));
   document.querySelector('#add-service')?.addEventListener('click', () => {
@@ -355,6 +360,14 @@ function bindReview() {
     state.confirmed = false; render();
     document.querySelector(`[data-damage="${repairId}"]`)?.focus();
   });
+  document.querySelectorAll('[data-repair-metal]').forEach(input=>input.addEventListener('change',()=>{
+    const repair=state.repairs.find(entry=>entry.id===Number(input.dataset.repairMetal));
+    const selected=new Set(repair.metalIndexes ?? []);
+    if(input.checked) selected.add(Number(input.value)); else selected.delete(Number(input.value));
+    repair.metalIndexes=[...selected].sort((a,b)=>a-b);repair.override=null;
+    document.querySelector(`[data-reset-price="${repair.id}"]`).hidden=true;
+    markChanged();refreshPrices();
+  }));
   document.querySelectorAll('[data-damage]').forEach((input) => input.addEventListener('input', () => {
     const id = Number(input.dataset.damage);
     const repair = state.repairs.find((entry) => entry.id === id);
@@ -451,7 +464,7 @@ function bindReview() {
           const id=await client.action(api.tickets.create,{
             requestId:state.ticketRequestId,customerId:state.customer.id,details:state.details,
             photos:state.photos.map(({data,hallmark})=>({data,hallmark})),
-            repairs:reviewArgs.repairs.map((repair,index)=>({...repair,override:amounts.repairs[index].override,extra:amounts.repairs[index].extra})),
+            repairs:reviewArgs.repairs.map((repair,index)=>({...repair,metalIndexes:amounts.repairs[index].metalIndexes,override:amounts.repairs[index].override,extra:amounts.repairs[index].extra})),
             rush:amounts.rush,rhodium:amounts.rhodium,issuedDate,
           });
           state.ticket=await client.query(api.tickets.get,{id});
