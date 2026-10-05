@@ -42,14 +42,20 @@ function photoStrip(editable) {
   </figure>`).join('')}</div>`;
 }
 
+const backIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14 6-6 6 6 6M8 12h12"/></svg>';
+function pageHeader(label, back = '') {
+  return `<header class="header"><div class="header-brand">${back ? `<button type="button" class="nav-back" id="header-back" aria-label="${back}">${backIcon}</button>` : ''}<img class="brand" src="${mendedLogo}" alt="Mended" width="171" height="32" /></div><span class="step">${label}</span></header>`;
+}
+function returnToPhotos() { state.screen = 'capture'; state.error = ''; render(); window.scrollTo(0, 0); }
+
 function render() {
   const reviewing = state.screen === 'review';
   if (state.screen === 'ticket') {
-    app.innerHTML = `<header class="header"><img class="brand" src="${mendedLogo}" alt="Mended" width="171" height="32" /><span class="step">Repair ticket</span></header>${state.error?`<p class="notice error" role="alert">${escape(state.error)}</p>`:''}${ticketScreen(state.ticket)}`;
+    app.innerHTML = `${pageHeader('Repair ticket', state.ticket.status === 'signed' ? '' : 'Edit estimate')}${state.error?`<p class="notice error" role="alert">${escape(state.error)}</p>`:''}${ticketScreen(state.ticket)}`;
     bindTicket({state,render,startNew:startNewPiece,edit:()=>{state.screen='review';state.confirmed=false;state.ticketRequestId=null;state.error='';render();window.scrollTo(0,0);},save:async args=>{await client.mutation(api.tickets.sign,args);const ticket=await client.query(api.tickets.get,{id:args.id});if(!ticket)throw new Error('Ticket not found');return ticket;}});
     return;
   }
-  app.innerHTML = `<header class="header"><img class="brand" src="${mendedLogo}" alt="Mended" width="171" height="32" /><span class="step">${reviewing ? 'Review estimate' : 'Repair intake'}</span></header>
+  app.innerHTML = `${pageHeader(reviewing ? 'Review estimate' : 'Repair intake', reviewing ? 'Review photos' : '')}
     ${state.error ? `<p class="notice error" role="alert">${escape(state.error)}</p>` : ''}
     ${reviewing ? reviewScreen() : captureScreen()}`;
   if (!reviewing) {
@@ -455,7 +461,8 @@ function bindReview() {
     finally { app.inert=false; }
     render(); window.scrollTo(0, 0);
   });
-  document.querySelector('#back').addEventListener('click', () => { state.screen = 'capture'; state.error = ''; render(); window.scrollTo(0, 0); });
+  document.querySelector('#back').addEventListener('click', returnToPhotos);
+  document.querySelector('#header-back')?.addEventListener('click', returnToPhotos);
   document.querySelector('#new-piece')?.addEventListener('click', startNewPiece);
 }
 

@@ -34,6 +34,7 @@ export function bindTicket({state,render,save,edit,startNew}) {
   const ticket=state.ticket;
   document.querySelector('#ticket-due')?.addEventListener('change',event=>{ticket.dueDate=event.target.value;state.error='';});
   document.querySelector('#edit-ticket')?.addEventListener('click',edit);
+  document.querySelector('#header-back')?.addEventListener('click',edit);
   document.querySelector('#ticket-new')?.addEventListener('click',startNew);
   document.querySelector('#sign-ticket')?.addEventListener('click',()=>{
     try { validateDueDate(ticket.dueDate,ticket.issuedDate); }

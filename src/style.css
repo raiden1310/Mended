@@ -158,3 +158,53 @@ textarea:focus-visible { outline: 2px solid var(--brand); outline-offset: 4px; }
 .estimate-breakdown strong { font-weight: 500; font-variant-numeric: tabular-nums; }
 .estimate-total { border-top: 1px solid #6B687033; padding-top: 20px; margin-top: 20px; font-size: 13px; line-height: 18px; color: var(--muted); }
 .estimate-total strong { display: block; margin-top: 8px; font-size: 32px; line-height: 38px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+/* Shared surfaces inspired by references/Overall.png; Mended type and palette retained. */
+:root {
+  --shadow-card: 0 8px 24px #241A2B0A;
+  --shadow-raised: 0 8px 24px #241A2B1A;
+  --line: #6B687033;
+}
+.header { border-bottom: 0; padding: 24px 0 16px; }
+.header-brand { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.header-brand .brand { max-width: 100%; }
+.nav-back { display: grid; place-items: center; flex-shrink: 0; width: 44px; height: 44px; padding: 10px; border: 0; border-radius: 12px; background: var(--surface); color: var(--ink); box-shadow: 0 3px 10px #241A2B0A; }
+.nav-back svg { width: 24px; height: 24px; }
+.nav-back:hover { background: #F7F5F1; }
+.intro { padding: 24px 0; }
+.card { border-radius: 24px; box-shadow: var(--shadow-card); }
+.camera { border-radius: 20px; }
+.photo-section { padding: 24px; background: var(--surface); border-radius: 24px; box-shadow: var(--shadow-card); }
+.photo img, .ticket-photos img { border-radius: 16px; }
+.photos { gap: 12px; }
+.primary { border-radius: 16px; box-shadow: 0 4px 12px #241A2B1A; }
+.actions { position: sticky; bottom: 0; z-index: 3; margin-top: 24px; padding: 12px 0 calc(12px + env(safe-area-inset-bottom)); background: #F7F5F1; }
+.actions .ticket-secondary { margin-top: 4px; }
+.section-heading { gap: 12px; }
+.item-fields, .repair-fields, .price-fields { gap: 16px 12px; }
+.stone, .fee-choice { border-radius: 12px; padding: 8px; background: #F7F5F1; }
+.stone:has(input:checked), .fee-choice:has(input:checked) { color: var(--brand); }
+.fee-choice:has(input:disabled) { color: var(--muted); }
+.repair-row { padding-top: 24px; margin-top: 24px; }
+.repair-row .section-heading { margin-bottom: 4px; }
+.service-options { border: 0; box-shadow: var(--shadow-raised); border-radius: 16px; }
+.service-options button { border-radius: 8px; }
+.service-price { background: #F7F5F1; padding: 16px; border-radius: 16px; }
+.estimate { margin-top: 24px; }
+.estimate-total { border-top: 0; padding: 16px; border-radius: 16px; background: #F7F5F1; }
+.ticket-summary { border-bottom: 0; background: var(--surface); border-radius: 24px; padding: 24px; box-shadow: var(--shadow-card); }
+.ticket-summary > p:first-child { margin-top: 0; }
+.ticket-dates { padding: 16px; background: #F7F5F1; border-radius: 16px; }
+.ticket-dates p:first-child { margin-top: 0; }
+.ticket-section:not(.card) { padding: 24px; background: var(--surface); border-radius: 24px; box-shadow: var(--shadow-card); }
+.signature-sheet { border-radius: 24px 24px 0 0; box-shadow: 0 -8px 32px #241A2B1A; }
+.signature-sheet canvas { border-radius: 16px; background: #F7F5F1; }
+.notice { border-radius: 16px; box-shadow: var(--shadow-card); }
+@media (max-width: 360px) {
+  .card, .photo-section, .ticket-summary, .ticket-section:not(.card) { padding: 16px; }
+  .item-fields, .repair-fields, .price-fields { column-gap: 8px; }
+}
+@media print {
+  .card, .ticket-summary, .ticket-section:not(.card), .ticket-dates, .estimate-total { box-shadow: none; background: #FFFFFF; border-radius: 0; }
+  .print-ticket .ticket-summary, .print-ticket .ticket-section:not(.card), .print-ticket .ticket-dates { padding: 0; }
+}
