@@ -89,12 +89,12 @@ p { margin: 12px 0 0; }
 .photo { position: relative; flex: 0 0 160px; margin: 0; }
 .photo img { display: block; width: 160px; height: 160px; border-radius: 12px; object-fit: cover; background: #FFFFFF; }
 figcaption { margin-top: 8px; }
-.text-button, .remove { border: 0; background: transparent; color: var(--brand); min-height: 44px; padding: 8px 0; font-size: 13px; line-height: 18px; font-weight: 500; }
+.text-button, .photo-remove { border: 0; background: transparent; color: var(--brand); min-height: 44px; padding: 8px 0; font-size: 13px; line-height: 18px; font-weight: 500; }
 .text-button:hover { text-decoration: underline; text-underline-offset: 4px; }
 .hallmark { display: block; }
 .hallmark.selected { color: #241A2B; text-decoration: underline; text-decoration-color: #B79454; text-underline-offset: 4px; }
-.remove { position: absolute; top: 0; right: 0; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; }
-.remove svg { display: block; width: 32px; height: 32px; }
+.photo-remove { position: absolute; top: 0; right: 0; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; }
+.photo-remove svg { display: block; width: 32px; height: 32px; }
 .empty { color: var(--muted); padding: 24px 0; }
 .actions { margin-top: 24px; }
 .notice { border-radius: 12px; background: #FFFFFF; padding: 16px; margin-top: 24px; }
@@ -224,3 +224,8 @@ textarea:focus-visible { outline: 2px solid var(--brand); outline-offset: 4px; }
 .sheet-drag-area h2 { padding-bottom: 8px; }
 @media (prefers-reduced-motion: reduce) { .signature-sheet { transition: none; } }
 @media print { .ticket > .notice { display: none; } }
+
+.service-remove { color: #A33A43; position: static; flex-shrink: 0; }
+.signature-sheet:focus { outline: none; }
+.sheet-handle:focus-visible { outline: none; }
+.sheet-handle:focus-visible span { outline: 2px solid var(--brand); outline-offset: 4px; }

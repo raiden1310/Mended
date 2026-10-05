@@ -58,3 +58,9 @@ export function validateRepairs(repairs, photoCount, { allowUnselected = false }
     return { damage: damage.trim(), serviceCode, photo };
   });
 }
+
+export function photoIntakeMessage({ multipleItems, photosUsable }) {
+  if (multipleItems) return 'One item at a time, please.';
+  if (!photosUsable) return 'These photos are too unclear to identify the piece. Retake them in good light, with the item in focus.';
+  return '';
+}

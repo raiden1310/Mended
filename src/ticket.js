@@ -55,7 +55,7 @@ export function bindTicket({state,render,save,edit,startNew}) {
 function openSignature(ticket,onSave) {
   const dialog=document.createElement('dialog');dialog.className='signature-sheet';
   dialog.innerHTML=`<div class="sheet-drag-area"><button type="button" class="sheet-handle" aria-label="Close signature sheet"><span></span></button><h2 id="signature-heading">Customer signature</h2></div><p>${escape(ticket.customer.name)} · ${number(ticket)}</p><p class="helper">Total estimate ${usd(ticket.total)} · Due ${date(ticket.dueDate)}</p><p class="helper">Review the ticket, then sign below.</p><label class="field" for="signature-canvas">Sign here</label><canvas id="signature-canvas" aria-label="Draw your signature" tabindex="0"></canvas><button type="button" class="text-button" id="signature-clear">Clear signature</button><p class="helper error" id="signature-error" role="alert"></p><button type="button" class="primary" id="signature-save">Save signed ticket</button>`;
-  dialog.setAttribute('aria-labelledby','signature-heading');document.body.append(dialog);dialog.showModal();
+  dialog.setAttribute('aria-labelledby','signature-heading');dialog.setAttribute('tabindex','-1');document.body.append(dialog);dialog.showModal();dialog.focus({preventScroll:true});
   const canvas=dialog.querySelector('canvas'),context=canvas.getContext('2d');
   const message=dialog.querySelector('#signature-error');
   let strokes=[],stroke=null,pointerId=null,pointCount=0,saving=false;

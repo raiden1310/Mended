@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { supportedPurity, validatePhotos, validateRepairs } from '../shared/item-rules.js';
+import { supportedPurity, photoIntakeMessage, validatePhotos, validateRepairs } from '../shared/item-rules.js';
 
 test('purity needs a readable, matching hallmark, never a guess from appearance', () => {
   assert.equal(supportedPurity('Yellow gold', '14K / 585', ''), 'Unknown');
@@ -38,4 +38,11 @@ test('AI can leave a service unselected, but associate confirmation requires a c
   assert.doesNotThrow(() => validateRepairs([damage], 3, { allowUnselected: true }));
   assert.throws(() => validateRepairs([damage], 3), /from the catalog/);
   assert.throws(() => validateRepairs([{ ...damage, serviceCode: 'invented' }], 3, { allowUnselected: true }), /from the catalog/);
+});
+
+test('multiple pieces request one item, while blur keeps its own retake message', () => {
+  assert.equal(photoIntakeMessage({multipleItems:true,photosUsable:false}), 'One item at a time, please.');
+  assert.equal(photoIntakeMessage({multipleItems:true,photosUsable:true}), 'One item at a time, please.');
+  assert.match(photoIntakeMessage({multipleItems:false,photosUsable:false}), /too unclear/);
+  assert.equal(photoIntakeMessage({multipleItems:false,photosUsable:true}), '');
 });

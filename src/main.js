@@ -39,7 +39,7 @@ function photoStrip(editable) {
   return `<div class="photos" aria-label="Captured photos">${state.photos.map((photo, index) => `<figure class="photo">
     ${photoPreview(photo.data, `Jewelry photo ${index + 1}${photo.hallmark ? ', hallmark close-up' : ''}`, escape)}
     <figcaption>Photo ${index + 1}${photo.hallmark ? ' · Hallmark' : ''}</figcaption>
-    ${editable ? `<button class="text-button hallmark${photo.hallmark ? ' selected' : ''}" data-mark="${photo.id}" aria-pressed="${photo.hallmark}">${photo.hallmark ? 'Hallmark photo' : 'Mark as hallmark'}</button><button class="remove" data-remove="${photo.id}" aria-label="Remove photo ${index + 1}"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="16" fill="#A33A43"/><path d="M11 11l10 10m0-10L11 21" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"/></svg></button>` : ''}
+    ${editable ? `<button class="text-button hallmark${photo.hallmark ? ' selected' : ''}" data-mark="${photo.id}" aria-pressed="${photo.hallmark}">${photo.hallmark ? 'Hallmark photo' : 'Mark as hallmark'}</button><button class="photo-remove" data-remove="${photo.id}" aria-label="Remove photo ${index + 1}"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="16" fill="#A33A43"/><path d="M11 11l10 10m0-10L11 21" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"/></svg></button>` : ''}
   </figure>`).join('')}</div>`;
 }
 
@@ -285,7 +285,7 @@ function servicesCard() {
     ${state.repairBusy ? '<p class="helper" role="status">Checking the photos for visible damage…</p><div class="skeleton"></div>' : `
     <p class="helper${state.repairError || state.assessment === 'unclear' ? ' attention' : ''}" role="status">${escape(message)}</p>
     <div class="repair-list">${state.repairs.map((repair, index) => `<div class="repair-row">
-      <div class="section-heading"><h3>Repair service ${index + 1}</h3><button type="button" class="text-button remove" data-remove-repair="${repair.id}" aria-label="Remove repair service ${index + 1}">Remove</button></div>
+      <div class="section-heading"><h3>Repair service ${index + 1}</h3><button type="button" class="text-button service-remove" data-remove-repair="${repair.id}" aria-label="Remove repair service ${index + 1}">Remove</button></div>
       <div class="repair-fields"><label class="field">Damage<textarea form="item-form" id="damage-${repair.id}" data-damage="${repair.id}" maxlength="160" rows="1" required placeholder="Describe the damage">${escape(repair.damage)}</textarea></label>
       <div class="service-picker" data-picker="${repair.id}"><label class="field" for="service-${repair.id}">Repair service</label><input id="service-${repair.id}" type="search" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="service-options-${repair.id}" autocomplete="off" placeholder="Search services" />
       <div id="service-options-${repair.id}" class="service-options" role="listbox" aria-label="Repair services" hidden></div>
