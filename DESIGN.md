@@ -103,3 +103,5 @@ Header (approved 5 Oct): Replace the Mended text with the supplied design/logo/s
 Capture icon (approved 5 Oct): Use the latest supplied scan-style camera outline: open sides, circular lens, and a solid dot at the lower right. Keep the existing icon size and color.
 
 Capture controls (approved 5 Oct): The initial identification action reads Get estimate. Intro copy reads “Upload images of the item and Mended will handle the rest for you”. Each editable photo has a white cross in a red circle at the top right, replacing Remove text, with a 44px tap target and accessible Remove photo label.
+
+Header logo sizing (approved 5 Oct): Reduce the horizontal logo to 96px wide, retaining its proportions and centered alignment with the Repair intake label.

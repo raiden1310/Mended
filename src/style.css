@@ -65,7 +65,7 @@ input, select { caret-color: var(--brand); }
 #splash.ready img { visibility: hidden; }
 #app { max-width: 600px; margin: auto; padding: 0 20px calc(32px + env(safe-area-inset-bottom)); }
 .header { gap: 16px; display: flex; justify-content: space-between; align-items: center; padding: 24px 0; border-bottom: 1px solid #6B687033; }
-.brand { display: block; width: 171px; max-width: 50%; height: auto; }
+.brand { display: block; width: 96px; max-width: 50%; height: auto; }
 .step { font-size: 13px; line-height: 18px; color: var(--muted); font-weight: 500; }
 .intro { padding: 32px 0 24px; }
 h1, h2, legend { font-size: 18px; line-height: 24px; font-weight: 600; margin: 0; color: var(--ink); }
