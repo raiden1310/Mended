@@ -12,11 +12,9 @@ import { ITEM_TYPES, METALS, PURITIES, STONES, MAX_PHOTOS, BUSY_MESSAGE } from '
 
 const client = import.meta.env.VITE_CONVEX_URL ? new ConvexHttpClient(import.meta.env.VITE_CONVEX_URL) : null;
 const app = document.querySelector('#app');
-const state = { screen: 'capture', photos: [], details: null, busy: false, processing: false, error: '', cameraMessage: '', confirmed: false, repairs: [], assessment: null, repairError: '', repairBusy: false, repairPhotosChanged: false, estimate: null, estimateError: '', estimatePending: false, rush: false, rhodium: false };
-let stream = null;
+const state = { screen: 'capture', photos: [], details: null, busy: false, processing: false, error: '', confirmed: false, repairs: [], assessment: null, repairError: '', repairBusy: false, repairPhotosChanged: false, estimate: null, estimateError: '', estimatePending: false, rush: false, rhodium: false };
 let photoId = 0;
 let repairId = 0;
-let cameraRequest = 0;
 let estimateRequest = 0;
 let estimateTimer;
 state.customer = null;
@@ -34,12 +32,6 @@ const usd = amount => new Intl.NumberFormat('en-US', {style:'currency',currency:
 const escape = (text) => String(text).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 const options = (values, selected) => values.map((value) => `<option${value === selected ? ' selected' : ''}>${escape(value)}</option>`).join('');
 const cameraIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M8 5l1-2h6l1 2h4v15H4V5z"/><circle cx="12" cy="12" r="4"/></svg>';
-
-function stopCamera() {
-  cameraRequest++;
-  stream?.getTracks().forEach((track) => track.stop());
-  stream = null;
-}
 
 function photoStrip(editable) {
   return `<div class="photos" aria-label="Captured photos">${state.photos.map((photo, index) => `<figure class="photo">
@@ -60,10 +52,8 @@ function render() {
     ${state.error ? `<p class="notice error" role="alert">${escape(state.error)}</p>` : ''}
     ${reviewing ? reviewScreen() : captureScreen()}`;
   if (!reviewing) {
-    const video = document.querySelector('.camera video');
-    if (stream && video) { video.srcObject = stream; video.play().catch(() => {}); }
-    document.querySelector('#start-camera')?.addEventListener('click', startCamera);
-    document.querySelector('#shutter')?.addEventListener('click', capturePhoto);
+    document.querySelector('#take-photo')?.addEventListener('click', () => document.querySelector('#camera-file').click());
+    document.querySelector('#camera-file')?.addEventListener('change', importFiles);
     document.querySelector('#files')?.addEventListener('change', importFiles);
     document.querySelector('#analyze')?.addEventListener('click', analyze);
     document.querySelectorAll('[data-mark]').forEach((button) => button.addEventListener('click', () => {
@@ -88,9 +78,9 @@ function captureScreen() {
   if (state.busy) return `<section class="card analysis" aria-busy="true"><h1>Identifying your piece</h1><p role="status">Checking the item, metals, hallmark, and stones. This may take a minute.</p><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></section>${photoStrip(false)}`;
   return `<section class="intro"><h1>Accurate repairs.<br>Satisfied clients.</h1><p>Upload images of the item and AI will handle the rest for you</p></section>
     <section class="card capture"><h2>Photograph one piece</h2><p>Take at least three images: the whole piece, a hallmark close-up, and another angle.</p>
-      <div class="camera${stream ? ' active' : ''}">${stream ? `<video autoplay muted playsinline aria-label="Live camera preview"></video>` : `<div class="camera-placeholder">${cameraIcon}<p>Keep the piece in focus<br>and use good light.</p></div>`}</div>
-      ${state.cameraMessage ? `<p class="helper" role="status">${escape(state.cameraMessage)}</p>` : ''}
-      ${stream ? `<button id="shutter" class="primary" ${locked || state.photos.length >= MAX_PHOTOS ? 'disabled' : ''}>Take photo</button>` : `<button id="start-camera" class="primary" ${locked || state.photos.length >= MAX_PHOTOS ? 'disabled' : ''}>Start capturing</button>`}
+      <div class="camera"><div class="camera-placeholder">${cameraIcon}<p>Keep the piece in focus<br>and use good light.</p></div></div>
+      <button id="take-photo" class="primary" ${locked || state.photos.length >= MAX_PHOTOS ? 'disabled' : ''}>Take photo</button>
+      <input id="camera-file" type="file" accept="image/*" capture="environment" hidden ${locked || state.photos.length >= MAX_PHOTOS ? 'disabled' : ''} />
       <label class="upload${locked || state.photos.length >= MAX_PHOTOS ? ' disabled' : ''}">Choose photos<input id="files" type="file" accept="image/*" multiple ${locked || state.photos.length >= MAX_PHOTOS ? 'disabled' : ''} /></label>
       <p class="helper">${state.processing ? 'Preparing photos…' : 'Photos are resized on your phone before analysis.'}</p>
     </section>
@@ -99,20 +89,6 @@ function captureScreen() {
       <p class="helper">${state.photos.length < 3 ? `${3 - state.photos.length} more photo${3 - state.photos.length === 1 ? '' : 's'} needed. ` : ''}${state.photos.some((photo) => photo.hallmark) ? 'Hallmark photo selected. An unreadable mark is okay.' : 'Mark one photo as the hallmark close-up.'}</p>
     </section>
     <footer class="actions"><button id="analyze" class="primary" ${!ready || locked ? 'disabled' : ''}>${state.details ? (state.repairPhotosChanged ? 'Review damage with new photos' : 'Return to review') : 'Identify item'}</button></footer>`;
-}
-
-async function startCamera() {
-  if (!navigator.mediaDevices?.getUserMedia) {
-    state.cameraMessage = 'Camera preview is unavailable. Use Choose photos to take or upload pictures.'; render(); return;
-  }
-  const request = ++cameraRequest;
-  try {
-    const nextStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
-    if (request !== cameraRequest || state.screen !== 'capture') { nextStream.getTracks().forEach((track) => track.stop()); return; }
-    stream = nextStream; state.cameraMessage = ''; render();
-  } catch {
-    state.cameraMessage = 'Camera unavailable. Allow camera access in your browser, or use Choose photos.'; render();
-  }
 }
 
 function resizedImage(source, width, height) {
@@ -130,16 +106,8 @@ function resizedImage(source, width, height) {
   return { id: ++photoId, data, hallmark: false };
 }
 
-function capturePhoto() {
-  if (state.photos.length >= MAX_PHOTOS || state.processing) return;
-  const video = document.querySelector('.camera video');
-  try {
-    state.photos.push(resizedImage(video, video.videoWidth, video.videoHeight));
-    invalidatePhotos(); state.error = ''; render();
-  } catch (error) { state.error = error.message; render(); }
-}
-
 async function importFiles(event) {
+  if (state.busy || state.processing || state.photos.length >= MAX_PHOTOS) return;
   const files = [...event.target.files];
   if (!files.length) return;
   const room = MAX_PHOTOS - state.photos.length;
@@ -178,7 +146,6 @@ async function analyzeRepairs() {
 
 async function analyze() {
   if (state.busy || state.processing || state.photos.length < 3 || !state.photos.some((photo) => photo.hallmark)) return;
-  stopCamera();
   if (state.details) {
     state.screen = 'review'; render(); window.scrollTo(0, 0);
     if (state.repairPhotosChanged) await analyzeRepairs();
@@ -491,11 +458,6 @@ function bindReview() {
   document.querySelector('#back').addEventListener('click', () => { state.screen = 'capture'; state.error = ''; render(); window.scrollTo(0, 0); });
   document.querySelector('#new-piece')?.addEventListener('click', startNewPiece);
 }
-
-window.addEventListener('pagehide', stopCamera);
-window.addEventListener('visibilitychange', () => {
-  if (document.hidden && stream) { stopCamera(); if (state.screen === 'capture') render(); }
-});
 
 const splash = document.querySelector('#splash');
 startSplash(splash, () => {
