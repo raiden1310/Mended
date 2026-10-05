@@ -1,6 +1,7 @@
 import { REPAIR_SERVICES, searchServices } from '../shared/repair-catalog.js';
 import { startSplash } from './splash.js';
 import { customerCard, bindCustomer } from './customer-picker.js';
+import { ticketScreen, bindTicket } from './ticket.js';
 import { ConvexHttpClient } from 'convex/browser';
 import { api } from '../convex/_generated/api';
 import '@fontsource/inter/latin-400.css';
@@ -20,6 +21,15 @@ let estimateRequest = 0;
 let estimateTimer;
 state.customer = null;
 state.customerSearch = '';
+state.ticket = null;
+state.ticketRequestId = null;
+state.ticketRequestSignature = null;
+
+function startNewPiece() {
+  state.ticket=null;state.ticketRequestId=null;state.ticketRequestSignature=null;state.customer=null;state.customerSearch='';state.rush=false;state.rhodium=false;state.estimate=null;
+  state.photos=[];state.details=null;state.repairs=[];state.assessment=null;state.repairError='';state.repairPhotosChanged=false;state.screen='capture';state.confirmed=false;state.error='';
+  render();window.scrollTo(0,0);
+}
 const usd = amount => new Intl.NumberFormat('en-US', {style:'currency',currency:'USD'}).format(amount);
 const escape = (text) => String(text).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 const options = (values, selected) => values.map((value) => `<option${value === selected ? ' selected' : ''}>${escape(value)}</option>`).join('');
@@ -41,6 +51,11 @@ function photoStrip(editable) {
 
 function render() {
   const reviewing = state.screen === 'review';
+  if (state.screen === 'ticket') {
+    app.innerHTML = `<header class="header"><span class="brand">Mended</span><span class="step">Repair ticket</span></header>${state.error?`<p class="notice error" role="alert">${escape(state.error)}</p>`:''}${ticketScreen(state.ticket)}`;
+    bindTicket({state,render,startNew:startNewPiece,edit:()=>{state.screen='review';state.confirmed=false;state.ticketRequestId=null;state.error='';render();window.scrollTo(0,0);},save:async args=>{await client.mutation(api.tickets.sign,args);const ticket=await client.query(api.tickets.get,{id:args.id});if(!ticket)throw new Error('Ticket not found');return ticket;}});
+    return;
+  }
   app.innerHTML = `<header class="header"><span class="brand">Mended</span><span class="step">${reviewing ? 'Review estimate' : 'Capture item'}</span></header>
     ${state.error ? `<p class="notice error" role="alert">${escape(state.error)}</p>` : ''}
     ${reviewing ? reviewScreen() : captureScreen()}`;
@@ -334,6 +349,7 @@ function reviewScreen() {
 function bindReview() {
   const markChanged = () => {
     state.confirmed = false;
+    state.ticketRequestId = null;
     const notice = document.querySelector('.notice.success'); notice?.remove();
     const footer = document.querySelector('.actions');
     footer.innerHTML = `<button type="submit" form="item-form" class="primary" ${state.repairBusy ? 'disabled' : ''}>Confirm estimate</button>`;
@@ -438,27 +454,42 @@ function bindReview() {
   document.querySelector('#item-form').addEventListener('submit', async (event) => {
     event.preventDefault();
     if (state.repairBusy) return;
+    if (!state.customer) { state.error='Search and select a customer before creating the repair ticket.';render();document.querySelector('#customer-search').focus();return; }
     if (state.estimateError) { state.error=state.estimateError; render(); return; }
     const button = document.querySelector('.actions button'); button.disabled = true; button.textContent = 'Checking your review…';
+    app.inert=true;
     const reviewArgs={photoCount:state.photos.length,repairs:state.repairs.map(({damage,serviceCode,photo})=>({damage,serviceCode,photo}))};
     const amounts=estimateArgs();
     const signature=value=>JSON.stringify(value,(_key,entry)=>typeof entry==='number' && !Number.isFinite(entry) ? 'invalid amount' : entry);
-    const snapshot=signature([reviewArgs,amounts,state.customer?.id ?? null]);
+    const snapshot=signature([reviewArgs,amounts,state.customer?.id ?? null,state.details]);
     try {
       const result = await client.action(api.itemAnalysis.reviewRepairs, reviewArgs);
       if (!result.ok) state.error=result.message;
       else {
         const estimate=await client.query(api.estimates.calculate,amounts);
         const currentReview={photoCount:state.photos.length,repairs:state.repairs.map(({damage,serviceCode,photo})=>({damage,serviceCode,photo}))};
-        if (snapshot!==signature([currentReview,estimateArgs(),state.customer?.id ?? null])) state.error='The estimate changed while checking. Review it and confirm again.';
-        else if (estimate.complete) { state.confirmed = true; state.estimate=estimate; state.error = ''; }
+        if (snapshot!==signature([currentReview,estimateArgs(),state.customer?.id ?? null,state.details])) state.error='The estimate changed while checking. Review it and confirm again.';
+        else if (estimate.complete) {
+          if(state.ticketRequestSignature!==snapshot || !state.ticketRequestId){state.ticketRequestId=crypto.randomUUID();state.ticketRequestSignature=snapshot;}
+          const today=new Date();const issuedDate=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+          const id=await client.action(api.tickets.create,{
+            requestId:state.ticketRequestId,customerId:state.customer.id,details:state.details,
+            photos:state.photos.map(({data,hallmark})=>({data,hallmark})),
+            repairs:reviewArgs.repairs.map((repair,index)=>({...repair,override:amounts.repairs[index].override,extra:amounts.repairs[index].extra})),
+            rush:amounts.rush,rhodium:amounts.rhodium,issuedDate,
+          });
+          state.ticket=await client.query(api.tickets.get,{id});
+          if(!state.ticket)throw new Error('Ticket not found');
+          state.screen='ticket';state.confirmed=true;state.estimate=estimate;state.error='';
+        }
         else state.error='Choose all services and enter any missing prices before confirming.';
       }
-    } catch { state.error = 'Estimate could not be confirmed. Check your prices and try again.'; }
+    } catch { state.error = 'Could not create the ticket. Check your connection and try again.'; }
+    finally { app.inert=false; }
     render(); window.scrollTo(0, 0);
   });
   document.querySelector('#back').addEventListener('click', () => { state.screen = 'capture'; state.error = ''; render(); window.scrollTo(0, 0); });
-  document.querySelector('#new-piece')?.addEventListener('click', () => { state.customer=null; state.customerSearch=''; state.rush=false; state.rhodium=false; state.estimate=null; state.photos = []; state.details = null; state.repairs = []; state.assessment = null; state.repairError = ''; state.repairPhotosChanged = false; state.screen = 'capture'; state.confirmed = false; state.error = ''; render(); window.scrollTo(0, 0); });
+  document.querySelector('#new-piece')?.addEventListener('click', startNewPiece);
 }
 
 window.addEventListener('pagehide', stopCamera);

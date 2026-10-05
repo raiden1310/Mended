@@ -12,6 +12,8 @@ import type * as customers from "../customers.js";
 import type * as estimates from "../estimates.js";
 import type * as itemAnalysis from "../itemAnalysis.js";
 import type * as repairPrices from "../repairPrices.js";
+import type * as ticketValidators from "../ticketValidators.js";
+import type * as tickets from "../tickets.js";
 
 import type {
   ApiFromModules,
@@ -24,6 +26,8 @@ declare const fullApi: ApiFromModules<{
   estimates: typeof estimates;
   itemAnalysis: typeof itemAnalysis;
   repairPrices: typeof repairPrices;
+  ticketValidators: typeof ticketValidators;
+  tickets: typeof tickets;
 }>;
 
 /**
