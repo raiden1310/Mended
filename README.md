@@ -84,3 +84,7 @@ review. Reviewed details remain temporary until the storage milestone.
 Service choices come from all 93 codes in `references/Jewelry_Repair_Price_Catalog.xlsx`, extracted into `shared/repair-catalog.js`. Searches match code, name, and category. Damage and service appear in two columns. AI never invents a service or assumes measurements needed to choose a variant. An unselected service requires associate selection before confirmation. Typical USD base prices use the confirmed 14K, 18K, 22K, 24K, or platinum selection. Blank 24K entries stay unavailable; additional units and add-ons remain for milestone 3.
 
 Damage detection and catalog matching run in separate Convex AI calls. The detector receives photos and a short inspection instruction, with no catalog or prices. The matcher receives only the completed text findings and catalog. A missing match or matcher failure preserves every damage with an unselected service. Both calls use GPT-6.1-Sol at medium thinking, a 500-token output cap each, and the shared 100-calls/hour limit.
+
+## Milestone 3 preview
+
+Review Estimate now has editable service prices, optional additional fees per service, confirmed catalog rush/re-rhodium fees, and a USD total calculated in Convex. There are no quantities. Missing prices or services keep the estimate incomplete; zero is accepted only as a known catalog price or an explicit associate price. Invalid or negative charges cannot be confirmed. Estimates remain temporary until the persistence milestone.

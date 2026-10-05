@@ -10,11 +10,14 @@ import { ITEM_TYPES, METALS, PURITIES, STONES, MAX_PHOTOS, BUSY_MESSAGE } from '
 
 const client = import.meta.env.VITE_CONVEX_URL ? new ConvexHttpClient(import.meta.env.VITE_CONVEX_URL) : null;
 const app = document.querySelector('#app');
-const state = { screen: 'capture', photos: [], details: null, busy: false, processing: false, error: '', cameraMessage: '', confirmed: false, repairs: [], assessment: null, repairError: '', repairBusy: false, repairPhotosChanged: false };
+const state = { screen: 'capture', photos: [], details: null, busy: false, processing: false, error: '', cameraMessage: '', confirmed: false, repairs: [], assessment: null, repairError: '', repairBusy: false, repairPhotosChanged: false, estimate: null, estimateError: '', estimatePending: false, rush: false, rhodium: false };
 let stream = null;
 let photoId = 0;
 let repairId = 0;
 let cameraRequest = 0;
+let estimateRequest = 0;
+let estimateTimer;
+const usd = amount => new Intl.NumberFormat('en-US', {style:'currency',currency:'USD'}).format(amount);
 const escape = (text) => String(text).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 const options = (values, selected) => values.map((value) => `<option${value === selected ? ' selected' : ''}>${escape(value)}</option>`).join('');
 const cameraIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M8 5l1-2h6l1 2h4v15H4V5z"/><circle cx="12" cy="12" r="4"/></svg>';
@@ -57,6 +60,7 @@ function render() {
     bindReview();
     alignRepairFields();
     refreshPrices();
+    refreshEstimate();
   }
 }
 
@@ -188,17 +192,70 @@ window.addEventListener('resize', () => { if (state.screen === 'review') alignRe
 
 function priceText(repair) {
   if (!repair.serviceCode) return 'Select a service to see its price.';
-  if (!repair.price) return repair.priceError || 'Fetching price…';
+  if (!repair.price) return repair.priceError || 'Fetching catalog price…';
   if (repair.price.amount === null) {
-    if (repair.price.availability === 'not_offered') return `This service is not offered for ${escape(repair.price.basis)} in the catalog.`;
-    if (repair.price.availability === 'unsupported_metal') return 'No catalog price for the selected metal and purity.';
-    return 'Confirm metal and purity to see its price.';
+    if (repair.price.availability === 'not_offered') return `This service is not offered for ${escape(repair.price.basis)} in the catalog. Enter a price only if the repair can be performed.`;
+    return 'No catalog price for this metal and purity. Enter the confirmed price.';
   }
-  const amount = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(repair.price.amount);
-  return `Typical catalog price<strong>${amount}</strong>${escape(repair.price.basis)} · ${escape(repair.price.unit)} · USD<br>Base price; additional units and add-ons excluded.`;
+  return `Catalog: ${usd(repair.price.amount)} · ${escape(repair.price.basis)} · ${escape(repair.price.unit)}. ${repair.override != null ? 'Associate price entered.' : 'Typical base price.'}`;
+}
+
+function estimateArgs() {
+  return {
+    metals: state.details.metals.map(({metal,purity})=>({metal,purity})),
+    repairs: state.repairs.map(repair=>({serviceCode:repair.serviceCode,override:repair.override ?? null,extra:repair.extra ?? 0})),
+    rush:state.rush,rhodium:state.rhodium,
+  };
+}
+
+function estimateSummary() {
+  if (state.estimatePending) return '<p role="status">Recalculating estimate…</p>';
+  if (state.estimateError) return `<p class="attention" role="alert">${escape(state.estimateError)}</p>`;
+  const estimate=state.estimate;
+  if (!estimate) return '<p role="status">Add services to build the estimate.</p>';
+  return `<div class="estimate-breakdown"><span>Services and additional fees</span><strong>${usd(estimate.subtotal)}</strong><span>Catalog fees</span><strong>${usd(estimate.fees)}</strong></div>
+    <p class="estimate-total">Total estimate<strong>${estimate.complete ? usd(estimate.total) : 'Price needed'}</strong></p>
+    <p class="helper" role="status">${estimate.complete ? 'USD · Review every price before confirming.' : estimate.lines.length ? 'Choose a service and enter any missing price to complete the total. The amounts above include priced services only.' : 'Add a repair service to create an estimate.'}</p>`;
+}
+
+function updateEstimateSummary() {
+  const target=document.querySelector('#estimate-summary');
+  if (target) target.innerHTML=estimateSummary();
+}
+
+function refreshEstimate() {
+  clearTimeout(estimateTimer);
+  const request=++estimateRequest;
+  state.estimate=null; state.estimateError=''; state.estimatePending=true;
+  updateEstimateSummary();
+  estimateTimer=setTimeout(async()=>{
+    try {
+      const result=await client.query(api.estimates.calculate,estimateArgs());
+      if (request!==estimateRequest) return;
+      state.estimate=result;
+    } catch {
+      if (request!==estimateRequest) return;
+      state.estimateError='Check your prices and fees. Use positive USD amounts or zero, with up to two decimal places.';
+    }
+    state.estimatePending=false; updateEstimateSummary();
+  },150);
+}
+
+function estimateCard() {
+  const eligible=state.details.metals.some(({metal,purity})=>metal==='White gold' && ['14K / 585','18K / 750'].includes(purity));
+  return `<section class="card estimate"><h2>Estimate</h2>
+    <label class="fee-choice"><input id="rush-fee" type="checkbox" ${state.rush ? 'checked' : ''} />Rush job · +$50.00</label>
+    <label class="fee-choice"><input id="rhodium-fee" type="checkbox" ${state.rhodium ? 'checked' : ''} ${eligible ? '' : 'disabled'} />Re-rhodium after bench work · +$10.00</label>
+    <p class="helper">Re-rhodium fee applies to confirmed 14K or 18K white gold. Select fees only when needed. Enter other charges under the relevant service.</p>
+    <div id="estimate-summary" aria-live="polite">${estimateSummary()}</div>
+  </section>`;
 }
 
 function refreshPrices() {
+  const eligible=state.details.metals.some(({metal,purity})=>metal==='White gold' && ['14K / 585','18K / 750'].includes(purity));
+  if (!eligible) state.rhodium=false;
+  const rhodium=document.querySelector('#rhodium-fee');
+  if (rhodium) { rhodium.disabled=!eligible; rhodium.checked=state.rhodium; }
   const metals = state.details.metals.map(({ metal, purity }) => ({ metal, purity }));
   for (const repair of state.repairs) {
     if (!repair.serviceCode) continue;
@@ -208,6 +265,9 @@ function refreshPrices() {
     const update = () => {
       const output = document.querySelector(`[data-price="${repair.id}"]`);
       if (output) output.innerHTML = priceText(repair);
+      const amount=document.querySelector(`[data-amount="${repair.id}"]`);
+      if (amount && repair.override == null) amount.value=repair.price?.amount ?? '';
+      refreshEstimate();
     };
     update();
     client.query(api.repairPrices.get, { serviceCode: repair.serviceCode, metals }).then(price => {
@@ -218,6 +278,7 @@ function refreshPrices() {
       repair.priceKey = null; repair.priceError = 'Price unavailable. Try selecting the service again.'; update();
     });
   }
+  refreshEstimate();
 }
 
 function servicesCard() {
@@ -235,6 +296,11 @@ function servicesCard() {
       <div class="service-picker" data-picker="${repair.id}"><label class="field" for="service-${repair.id}">Repair service</label><input id="service-${repair.id}" type="search" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="service-options-${repair.id}" autocomplete="off" placeholder="Search services" />
       <div id="service-options-${repair.id}" class="service-options" role="listbox" aria-label="Repair services" hidden></div>
       <p class="selected-service">${repair.serviceCode ? escape(REPAIR_SERVICES.find(service => service.code === repair.serviceCode)?.name || '') : 'Choose a service from the list.'}</p></div></div>
+      <div class="price-fields">
+        <label class="field">Service price (USD)<input type="number" inputmode="decimal" min="0" max="1000000" step="0.01" data-amount="${repair.id}" aria-label="Service price ${index+1} (USD)" value="${repair.override ?? repair.price?.amount ?? ''}" placeholder="Enter price" ${repair.serviceCode ? '' : 'disabled'} /></label>
+        <label class="field">Additional fee (USD)<input type="number" inputmode="decimal" min="0" max="1000000" step="0.01" data-extra="${repair.id}" aria-label="Additional fee ${index+1} (USD)" value="${repair.extra ?? 0}" /></label>
+      </div>
+      <button type="button" class="text-button catalog-reset" data-reset-price="${repair.id}" ${repair.override == null ? 'hidden' : ''}>Use catalog price</button>
       <p class="service-price" data-price="${repair.id}" role="status">${priceText(repair)}</p>
       <p class="helper">${repair.photo ? `Suggested from photo ${repair.photo}. Check against the piece.` : 'Entered by the associate.'}</p>
     </div>`).join('')}</div>
@@ -245,7 +311,7 @@ function servicesCard() {
 function reviewScreen() {
   const details = state.details;
   return `<section class="intro"><h1>Review Estimate</h1><p>Review the suggested details and correct anything that needs a closer look.</p></section>
-    ${state.confirmed ? '<p class="notice success" role="status">Item information and services reviewed. These details stay here until you reload or start another piece.</p>' : ''}
+    ${state.confirmed ? '<p class="notice success" role="status">Estimate confirmed. These details stay here until you reload or start another piece.</p>' : ''}
     <form id="item-form" class="card details">
       <div class="section-heading"><h2>Item information</h2>${details.metals.length < 3 ? '<button type="button" id="add-metal" class="text-button">Add metal</button>' : ''}</div><div class="item-fields"><label class="field">Item type<select id="item-type">${options(ITEM_TYPES, details.itemType)}</select></label>
       ${details.metals.map((metal, index) => `<div class="metal-group"><label class="field">Metal${details.metals.length > 1 ? ` ${index + 1}` : ''}<select data-metal="${index}">${options(METALS, metal.metal)}</select></label>
@@ -256,8 +322,9 @@ function reviewScreen() {
       <p class="helper">Unknown is okay. These are photo-based suggestions, ready for your check.</p>
     </form>
     ${servicesCard()}
+    ${estimateCard()}
     <section class="photo-section"><div class="section-heading"><h2>Captured images</h2><button id="back" class="text-button">Review photos</button></div>${photoStrip(false)}</section>
-    <footer class="actions">${state.confirmed ? '<button id="new-piece" class="primary">Start another piece</button>' : `<button type="submit" form="item-form" class="primary" ${state.repairBusy ? 'disabled' : ''}>Confirm item and services</button>`}</footer>`;
+    <footer class="actions">${state.confirmed ? '<button id="new-piece" class="primary">Start another piece</button>' : `<button type="submit" form="item-form" class="primary" ${state.repairBusy ? 'disabled' : ''}>Confirm estimate</button>`}</footer>`;
 }
 
 function bindReview() {
@@ -265,7 +332,7 @@ function bindReview() {
     state.confirmed = false;
     const notice = document.querySelector('.notice.success'); notice?.remove();
     const footer = document.querySelector('.actions');
-    footer.innerHTML = `<button type="submit" form="item-form" class="primary" ${state.repairBusy ? 'disabled' : ''}>Confirm item and services</button>`;
+    footer.innerHTML = `<button type="submit" form="item-form" class="primary" ${state.repairBusy ? 'disabled' : ''}>Confirm estimate</button>`;
   };
   document.querySelector('#item-type').addEventListener('change', (event) => { state.details.itemType = event.target.value; markChanged(); });
   document.querySelectorAll('[data-metal]').forEach((select) => select.addEventListener('change', () => {
@@ -306,7 +373,10 @@ function bindReview() {
     let active = -1;
     function close() { list.hidden = true; input.setAttribute('aria-expanded', 'false'); input.removeAttribute('aria-activedescendant'); }
     function select(service) {
-      repair.serviceCode = service.code; repair.source = 'manual';
+      repair.serviceCode = service.code; repair.source = 'manual'; repair.override=null; repair.extra=0;
+      const amount=document.querySelector(`[data-amount="${repair.id}"]`); if(amount) amount.disabled=false;
+      const extra=document.querySelector(`[data-extra="${repair.id}"]`); if(extra) extra.value=0;
+      document.querySelector(`[data-reset-price="${repair.id}"]`).hidden=true;
       picker.querySelector('.selected-service').textContent = service.name;
       input.value = ''; close(); markChanged(); refreshPrices();
     }
@@ -345,19 +415,45 @@ function bindReview() {
   document.querySelector('#close-up')?.addEventListener('click', () => {
     state.screen = 'capture'; state.error = ''; render(); window.scrollTo(0, 0);
   });
+  document.querySelectorAll('[data-amount], [data-extra]').forEach(input=>input.addEventListener('input',()=>{
+    const repair=state.repairs.find(entry=>entry.id===Number(input.dataset.amount || input.dataset.extra));
+    if (input.dataset.amount) repair.override=input.value==='' ? NaN : Number(input.value);
+    else repair.extra=input.value==='' ? NaN : Number(input.value);
+    repair.source='manual';
+    document.querySelector(`[data-reset-price="${repair.id}"]`).hidden=repair.override==null;
+    document.querySelector(`[data-price="${repair.id}"]`).innerHTML=priceText(repair);
+    markChanged(); refreshEstimate();
+  }));
+  document.querySelectorAll('[data-reset-price]').forEach(button=>button.addEventListener('click',()=>{
+    const repair=state.repairs.find(entry=>entry.id===Number(button.dataset.resetPrice));
+    repair.override=null; state.confirmed=false; render();
+  }));
+  document.querySelector('#rush-fee').addEventListener('change',event=>{state.rush=event.target.checked;markChanged();refreshEstimate();});
+  document.querySelector('#rhodium-fee').addEventListener('change',event=>{state.rhodium=event.target.checked;markChanged();refreshEstimate();});
   document.querySelector('#item-form').addEventListener('submit', async (event) => {
     event.preventDefault();
     if (state.repairBusy) return;
+    if (state.estimateError) { state.error=state.estimateError; render(); return; }
     const button = document.querySelector('.actions button'); button.disabled = true; button.textContent = 'Checking your review…';
+    const reviewArgs={photoCount:state.photos.length,repairs:state.repairs.map(({damage,serviceCode,photo})=>({damage,serviceCode,photo}))};
+    const amounts=estimateArgs();
+    const signature=value=>JSON.stringify(value,(_key,entry)=>typeof entry==='number' && !Number.isFinite(entry) ? 'invalid amount' : entry);
+    const snapshot=signature([reviewArgs,amounts]);
     try {
-      const result = await client.action(api.itemAnalysis.reviewRepairs, { photoCount: state.photos.length, repairs: state.repairs.map(({ damage, serviceCode, photo }) => ({ damage, serviceCode, photo })) });
-      if (result.ok) { state.confirmed = true; state.error = ''; }
-      else state.error = result.message;
-    } catch { state.error = BUSY_MESSAGE; }
+      const result = await client.action(api.itemAnalysis.reviewRepairs, reviewArgs);
+      if (!result.ok) state.error=result.message;
+      else {
+        const estimate=await client.query(api.estimates.calculate,amounts);
+        const currentReview={photoCount:state.photos.length,repairs:state.repairs.map(({damage,serviceCode,photo})=>({damage,serviceCode,photo}))};
+        if (snapshot!==signature([currentReview,estimateArgs()])) state.error='The estimate changed while checking. Review it and confirm again.';
+        else if (estimate.complete) { state.confirmed = true; state.estimate=estimate; state.error = ''; }
+        else state.error='Choose all services and enter any missing prices before confirming.';
+      }
+    } catch { state.error = 'Estimate could not be confirmed. Check your prices and try again.'; }
     render(); window.scrollTo(0, 0);
   });
   document.querySelector('#back').addEventListener('click', () => { state.screen = 'capture'; state.error = ''; render(); window.scrollTo(0, 0); });
-  document.querySelector('#new-piece')?.addEventListener('click', () => { state.photos = []; state.details = null; state.repairs = []; state.assessment = null; state.repairError = ''; state.repairPhotosChanged = false; state.screen = 'capture'; state.confirmed = false; state.error = ''; render(); window.scrollTo(0, 0); });
+  document.querySelector('#new-piece')?.addEventListener('click', () => { state.rush=false; state.rhodium=false; state.estimate=null; state.photos = []; state.details = null; state.repairs = []; state.assessment = null; state.repairError = ''; state.repairPhotosChanged = false; state.screen = 'capture'; state.confirmed = false; state.error = ''; render(); window.scrollTo(0, 0); });
 }
 
 window.addEventListener('pagehide', stopCamera);
