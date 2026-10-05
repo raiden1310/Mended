@@ -5,3 +5,4 @@
 2026-10-05 — Core flow ends at milestone 4. Milestone 5 removed from PLAN.md at the user's request.
 2026-10-05 — Native camera capture confirmed working by the user on iPhone Safari: one photo at a time, native accept/retake controls, and existing-photo uploads retained.
 2026-10-05 — User approved shipping all pending intake changes: clickable native-camera card, Or Upload Images, begin-intake hint, scan-style camera icon, smaller supplied Mended logo, Repair intake header, Get estimate action, Mended intro wording, and top-right photo remove crosses.
+2026-10-05 — User confirmed the Overall.png design update and fixes: rounded surfaces and shadows, clearer navigation, photo decoding and retry, pull-down signature sheet, corrected card spacing, service Remove placement, and separate multiple-item guidance. Approved for production.
