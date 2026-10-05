@@ -1,3 +1,4 @@
+import {printTicketCopies} from './print-ticket.js';
 import { photoPreview } from './photo-loading.js';
 import { validateDueDate, validateSignature, signaturePoint } from '../shared/ticket-rules.js';
 
@@ -27,34 +28,35 @@ function contents(ticket, printable=false) {
 
 export function ticketScreen(ticket) {
   return `<div class="ticket"><section class="intro"><h1>Your Repair Ticket</h1></section>${ticket.status==='signed'?'<p class="notice success" role="status">Signed ticket saved.</p>':''}${contents(ticket)}
-    <footer class="actions">${ticket.status==='signed'?'<button id="print-ticket" class="primary">Print two copies</button><button id="ticket-new" class="text-button ticket-secondary">Start another piece</button>':'<button id="sign-ticket" class="primary">Sign and save</button><button id="edit-ticket" class="text-button ticket-secondary">Edit estimate</button>'}</footer></div>
+    <footer class="actions">${ticket.status==='signed'?`<button id="print-ticket" class="primary">Print two copies</button><button id="ticket-next-customer" class="text-button ticket-secondary">Next piece for ${escape(ticket.customer.name)}</button><button id="ticket-new" class="text-button ticket-secondary">Start another piece</button>`:'<button id="sign-ticket" class="primary">Sign and save</button><button id="edit-ticket" class="text-button ticket-secondary">Edit estimate</button>'}</footer></div>
     ${ticket.status==='signed'?`<div class="print-tickets" aria-hidden="true">${['Store copy','Customer copy'].map(copy=>`<article class="print-ticket"><h1>Mended · Repair Ticket</h1><p>${copy}</p>${contents(ticket,true)}</article>`).join('')}</div>`:''}`;
 }
 
-export function bindTicket({state,render,save,edit,startNew}) {
+export function bindTicket({state,render,save,edit,startNew,nextForCustomer}) {
   const ticket=state.ticket;
   document.querySelector('#ticket-due')?.addEventListener('change',event=>{ticket.dueDate=event.target.value;state.error='';});
   document.querySelector('#edit-ticket')?.addEventListener('click',edit);
   document.querySelector('#header-back')?.addEventListener('click',edit);
+  document.querySelector('#ticket-next-customer')?.addEventListener('click',nextForCustomer);
+  const printSavedTicket=async()=>{try{await printTicketCopies();}catch{state.error='The signed ticket is saved. A photo could not load for printing. Try Print two copies again.';render();}};
   document.querySelector('#ticket-new')?.addEventListener('click',startNew);
   document.querySelector('#sign-ticket')?.addEventListener('click',()=>{
     try { validateDueDate(ticket.dueDate,ticket.issuedDate); }
     catch(error) { state.error=error.message;render();return; }
-    openSignature(ticket,async signature=>{state.ticket=await save({id:ticket.id,dueDate:ticket.dueDate,signature});state.error='';render();window.scrollTo(0,0);});
+    openSignature(ticket,async signature=>{state.ticket=await save({id:ticket.id,dueDate:ticket.dueDate,signature});state.error='';render();window.scrollTo(0,0);},printSavedTicket);
   });
   document.querySelector('#print-ticket')?.addEventListener('click',async event=>{
     const button=event.currentTarget;button.disabled=true;button.textContent='Preparing copies…';
     try {
-      await Promise.all([...document.querySelectorAll('.print-tickets img')].map(img=>img.decode()));
-      window.print();
+      await printTicketCopies();
     } catch { state.error='A ticket photo could not load. Check your connection and try printing again.';render(); }
     finally { if(button.isConnected){button.disabled=false;button.textContent='Print two copies';} }
   });
 }
 
-function openSignature(ticket,onSave) {
+function openSignature(ticket,onSave,onPrint) {
   const dialog=document.createElement('dialog');dialog.className='signature-sheet';
-  dialog.innerHTML=`<div class="sheet-drag-area"><button type="button" class="sheet-handle" aria-label="Close signature sheet"><span></span></button><h2 id="signature-heading">Customer signature</h2></div><p>${escape(ticket.customer.name)} · ${number(ticket)}</p><p class="helper">Total estimate ${usd(ticket.total)} · Due ${date(ticket.dueDate)}</p><p class="helper">Review the ticket, then sign below.</p><label class="field" for="signature-canvas">Sign here</label><canvas id="signature-canvas" aria-label="Draw your signature" tabindex="0"></canvas><button type="button" class="text-button" id="signature-clear">Clear signature</button><p class="helper error" id="signature-error" role="alert"></p><button type="button" class="primary" id="signature-save">Save signed ticket</button>`;
+  dialog.innerHTML=`<div class="sheet-drag-area"><button type="button" class="sheet-handle" aria-label="Close signature sheet"><span></span></button><h2 id="signature-heading">Customer signature</h2></div><p>${escape(ticket.customer.name)} · ${number(ticket)}</p><p class="helper">Total estimate ${usd(ticket.total)} · Due ${date(ticket.dueDate)}</p><p class="helper">Review the ticket, then sign below.</p><label class="field" for="signature-canvas">Sign here</label><canvas id="signature-canvas" aria-label="Draw your signature" tabindex="0"></canvas><button type="button" class="text-button" id="signature-clear">Clear signature</button><p class="helper error" id="signature-error" role="alert"></p><button type="button" class="primary signature-save" id="signature-save-print">Save signed ticket and print</button><button type="button" class="text-button signature-save" id="signature-save">Save signed ticket only</button>`;
   dialog.setAttribute('aria-labelledby','signature-heading');dialog.setAttribute('tabindex','-1');document.body.append(dialog);dialog.showModal();dialog.focus({preventScroll:true});
   const canvas=dialog.querySelector('canvas'),context=canvas.getContext('2d');
   const message=dialog.querySelector('#signature-error');
@@ -107,12 +109,12 @@ function openSignature(ticket,onSave) {
   for(const name of ['pointerup','pointercancel','lostpointercapture'])dragArea.addEventListener(name,finishDrag);
   dialog.addEventListener('cancel',event=>{if(saving)event.preventDefault();});
   dialog.addEventListener('close',()=>{observer.disconnect();dialog.remove();});
-  dialog.querySelector('#signature-save').addEventListener('click',async event=>{
+  dialog.querySelectorAll('.signature-save').forEach(saveButton=>saveButton.addEventListener('click',async event=>{
     if(saving)return;
     try{validateSignature(strokes);}catch(error){message.textContent=error.message;return;}
-    saving=true;event.currentTarget.disabled=true;dialog.querySelector('#signature-clear').disabled=true;handle.disabled=true;
-    const button=dialog.querySelector('#signature-save');button.textContent='Saving signed ticket…';
-    try {await onSave(strokes);dialog.close();}
-    catch {message.textContent='Could not save the signed ticket. Your signature is still here. Try again.';saving=false;button.disabled=false;button.textContent='Save signed ticket';dialog.querySelector('#signature-clear').disabled=false;handle.disabled=false;}
-  });
+    saving=true;dialog.querySelectorAll('.signature-save').forEach(button=>{button.disabled=true;});dialog.querySelector('#signature-clear').disabled=true;handle.disabled=true;
+    const button=event.currentTarget;const label=button.textContent;const printAfter=button.id==='signature-save-print';button.textContent='Saving signed ticket…';
+    try {await onSave(strokes);dialog.close();if(printAfter)await onPrint();}
+    catch {message.textContent='Could not save the signed ticket. Your signature is still here. Try again.';saving=false;dialog.querySelectorAll('.signature-save').forEach(button=>{button.disabled=false;});button.textContent=label;dialog.querySelector('#signature-clear').disabled=false;handle.disabled=false;}
+  }));
 }

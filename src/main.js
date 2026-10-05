@@ -1,3 +1,4 @@
+import {suggestServices, mergeRepairSuggestions} from '../shared/intake-shortcuts.js';
 import { photoPreview, bindPhotoLoading } from './photo-loading.js';
 import mendedLogo from '../design/logo/svg/mended_horizontal_full-color.svg';
 import { REPAIR_SERVICES, searchServices } from '../shared/repair-catalog.js';
@@ -25,8 +26,9 @@ state.ticket = null;
 state.ticketRequestId = null;
 state.ticketRequestSignature = null;
 
-function startNewPiece() {
-  state.ticket=null;state.ticketRequestId=null;state.ticketRequestSignature=null;state.customer=null;state.customerSearch='';state.rush=false;state.rhodium=false;state.estimate=null;
+function startNewPiece(keepCustomer = false) {
+  const customer = keepCustomer === true ? state.customer : null;
+  state.ticket=null;state.ticketRequestId=null;state.ticketRequestSignature=null;state.customer=customer;state.itemDetailsOpen=undefined;state.customerSearch='';state.rush=false;state.rhodium=false;state.estimate=null;
   state.photos=[];state.details=null;state.repairs=[];state.assessment=null;state.repairError='';state.repairPhotosChanged=false;state.screen='capture';state.confirmed=false;state.error='';
   render();window.scrollTo(0,0);
 }
@@ -54,7 +56,7 @@ function render() {
   if (state.screen === 'ticket') {
     app.innerHTML = `${pageHeader('Repair ticket', state.ticket.status === 'signed' ? '' : 'Edit estimate')}${state.error?`<p class="notice error" role="alert">${escape(state.error)}</p>`:''}${ticketScreen(state.ticket)}`;
     bindPhotoLoading(app);
-    bindTicket({state,render,startNew:startNewPiece,edit:()=>{state.screen='review';state.confirmed=false;state.ticketRequestId=null;state.error='';render();window.scrollTo(0,0);},save:async args=>{await client.mutation(api.tickets.sign,args);const ticket=await client.query(api.tickets.get,{id:args.id});if(!ticket)throw new Error('Ticket not found');return ticket;}});
+    bindTicket({state,render,startNew:()=>startNewPiece(),nextForCustomer:()=>startNewPiece(true),edit:()=>{state.screen='review';state.confirmed=false;state.ticketRequestId=null;state.error='';render();window.scrollTo(0,0);},save:async args=>{await client.mutation(api.tickets.sign,args);const ticket=await client.query(api.tickets.get,{id:args.id});if(!ticket)throw new Error('Ticket not found');return ticket;}});
     return;
   }
   app.innerHTML = `${pageHeader(reviewing ? 'Review estimate' : 'Repair intake', reviewing ? 'Review photos' : '')}
@@ -62,6 +64,7 @@ function render() {
     ${reviewing ? reviewScreen() : captureScreen()}`;
   bindPhotoLoading(app);
   if (!reviewing) {
+    document.querySelector('#capture-clear-customer')?.addEventListener('click',()=>{state.customer=null;render();});
     document.querySelector('#take-photo')?.addEventListener('click', () => document.querySelector('#camera-file').click());
     document.querySelector('#camera-file')?.addEventListener('change', importFiles);
     document.querySelector('#files')?.addEventListener('change', importFiles);
@@ -87,6 +90,7 @@ function captureScreen() {
   const locked = state.busy || state.processing;
   if (state.busy) return `<section class="card analysis" aria-busy="true"><h1>Identifying your piece</h1><p role="status">Checking the item, metals, hallmark, and stones. This may take a minute.</p><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></section>${photoStrip(false)}`;
   return `<section class="intro"><h1>Accurate repairs.<br>Satisfied clients.</h1><p>Upload images of the item and Mended will handle the rest for you</p></section>
+    ${state.customer ? `<p class="notice">Next piece for ${escape(state.customer.name)} <button id="capture-clear-customer" type="button" class="text-button">Change customer</button></p>` : ''}
     <section class="card capture"><h2>Photograph one piece</h2><p>Take at least three images: the whole piece, a hallmark close-up, and another angle.</p>
       <button id="take-photo" type="button" class="camera" aria-label="Take photo" ${locked || state.photos.length >= MAX_PHOTOS ? 'disabled' : ''}><span class="camera-placeholder">${cameraIcon}<span class="camera-guidance">Keep the piece in focus<br>and use good light.</span><span class="camera-guidance">Click here to begin intake</span></span></button>
       <input id="camera-file" type="file" accept="image/*" capture="environment" hidden ${locked || state.photos.length >= MAX_PHOTOS ? 'disabled' : ''} />
@@ -147,7 +151,8 @@ async function analyzeRepairs() {
     const result = await client.action(api.itemAnalysis.analyzeRepairs, { photos: state.photos.map(({ data, hallmark }) => ({ data, hallmark })) });
     state.assessment = result.assessment;
     state.repairError = result.status === 'error' ? result.message : '';
-    state.repairs = [...state.repairs.filter((repair) => repair.source === 'manual'), ...result.repairs.map((repair) => ({ ...repair, id: ++repairId, source: 'ai' }))];
+    state.repairs = mergeRepairSuggestions(state.repairs,result.repairs.map(repair=>({...repair,id:++repairId,source:'ai'})));
+    if(state.repairs.length) state.assessment='visible_damage';
     state.repairPhotosChanged = false;
   } catch { state.repairError = BUSY_MESSAGE; state.assessment = 'unclear'; state.repairs = state.repairs.filter((repair) => repair.source === 'manual'); }
   state.repairBusy = false; render();
@@ -291,7 +296,8 @@ function servicesCard() {
       <div class="service-picker" data-picker="${repair.id}"><label class="field" for="service-${repair.id}">Repair service</label><input id="service-${repair.id}" type="search" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="service-options-${repair.id}" autocomplete="off" placeholder="Search services" />
       <div id="service-options-${repair.id}" class="service-options" role="listbox" aria-label="Repair services" hidden></div>
       <p class="selected-service">${repair.serviceCode ? escape(REPAIR_SERVICES.find(service => service.code === repair.serviceCode)?.name || '') : 'Choose a service from the list.'}</p></div></div>
-      ${state.details.metals.length > 1 ? `<fieldset class="service-metals"><legend>Metal(s) being repaired</legend><div class="stones">${state.details.metals.map((metal,metalIndex)=>`<label class="metal-choice"><input type="checkbox" data-repair-metal="${repair.id}" value="${metalIndex}" ${(repair.metalIndexes ?? []).includes(metalIndex) ? 'checked' : ''} />${escape(metal.metal)} · ${escape(metal.purity)}</label>`).join('')}</div><p class="helper">Choose one or more. Multiple metals use 80% of the sum of their service prices.</p></fieldset>` : ''}
+      ${!repair.serviceCode ? `<div class="quick-services" aria-label="Suggested catalog choices">${suggestServices(repair.damage,state.details.itemType).map(service=>`<button type="button" class="quick-service" data-quick-service="${repair.id}" data-code="${service.code}">${escape(service.name)}<small>${service.code}</small></button>`).join('')}</div>` : ''}
+      ${state.details.metals.length > 1 ? `<fieldset class="service-metals"><legend>Metal(s) being repaired</legend><button type="button" class="text-button" data-all-metals="${repair.id}">All metals</button><div class="stones">${state.details.metals.map((metal,metalIndex)=>`<label class="metal-choice"><input type="checkbox" data-repair-metal="${repair.id}" value="${metalIndex}" ${(repair.metalIndexes ?? []).includes(metalIndex) ? 'checked' : ''} />${escape(metal.metal)} · ${escape(metal.purity)}</label>`).join('')}</div><p class="helper">Choose one or more. Multiple metals use 80% of the sum of their service prices.</p>${state.repairs.length > 1 && repair.metalIndexes?.length ? `<button type="button" class="text-button" data-apply-metals="${repair.id}">Apply these metals to all services</button>` : ''}</fieldset>` : ''}
       <div class="price-fields">
         <label class="field">Service price (USD)<input type="number" inputmode="decimal" min="0" max="1000000" step="0.01" data-amount="${repair.id}" aria-label="Service price ${index+1} (USD)" value="${repair.override ?? repair.price?.amount ?? ''}" placeholder="Enter price" ${repair.serviceCode ? '' : 'disabled'} /></label>
         <label class="field">Additional fee (USD)<input type="number" inputmode="decimal" min="0" max="1000000" step="0.01" data-extra="${repair.id}" aria-label="Additional fee ${index+1} (USD)" value="${repair.extra ?? 0}" /></label>
@@ -300,23 +306,26 @@ function servicesCard() {
       <p class="service-price" data-price="${repair.id}" role="status">${priceText(repair)}</p>
       <p class="helper">${repair.photo ? `Suggested from photo ${repair.photo}. Check against the piece.` : 'Entered by the associate.'}</p>
     </div>`).join('')}</div>
-    <button type="button" id="close-up" class="text-button">Add optional close-up</button>`}
+    <button type="button" id="close-up" class="text-button" ${state.processing || state.photos.length >= MAX_PHOTOS ? 'disabled' : ''}>Add optional close-up</button><input id="close-up-file" type="file" accept="image/*" capture="environment" hidden />`}
   </section>`;
 }
 
 function reviewScreen() {
   const details = state.details;
+  const expanded=state.itemDetailsOpen ?? (details.itemType==='Unknown' || details.metals.some(metal=>metal.metal==='Unknown' || metal.purity==='Unknown') || details.stones.includes('Unknown'));
   return `<section class="intro"><h1>Review Estimate</h1><p>Review the suggested details and correct anything that needs a closer look.</p></section>
     ${state.confirmed ? '<p class="notice success" role="status">Estimate confirmed. These details stay here until you reload or start another piece.</p>' : ''}
     ${customerCard(state)}
     <form id="item-form" class="card details">
-      <div class="section-heading"><h2>Item information</h2>${details.metals.length < 3 ? '<button type="button" id="add-metal" class="text-button">Add metal</button>' : ''}</div><div class="item-fields"><label class="field">Item type<select id="item-type">${options(ITEM_TYPES, details.itemType)}</select></label>
+      <div class="section-heading"><h2>Item information</h2><button type="button" id="toggle-item-details" class="text-button" aria-expanded="${expanded}" aria-controls="item-edit-fields">${expanded ? 'Close details' : 'Edit details'}</button></div>
+      <div class="item-summary" ${expanded ? 'hidden' : ''}><p>${escape(details.itemType)}</p><p>${details.metals.map(metal=>`${escape(metal.metal)} · ${escape(metal.purity)}`).join('<br>')}</p><p class="helper">Stones: ${details.stones.map(escape).join(', ')}</p><p class="helper">Check these details against the piece.</p></div>
+      <div id="item-edit-fields" ${expanded ? '' : 'hidden'}><div class="section-heading">${details.metals.length < 3 ? '<button type="button" id="add-metal" class="text-button">Add metal</button>' : ''}</div><div class="item-fields"><label class="field">Item type<select id="item-type">${options(ITEM_TYPES, details.itemType)}</select></label>
       ${details.metals.map((metal, index) => `<div class="metal-group"><label class="field">Metal${details.metals.length > 1 ? ` ${index + 1}` : ''}<select data-metal="${index}">${options(METALS, metal.metal)}</select></label>
         <label class="field">Purity<select data-purity="${index}">${options(PURITIES, metal.purity)}</select></label>
         <p class="helper${metal.purity === 'Unknown' ? ' attention' : ''}">${metal.hallmark ? `Hallmark read: ${escape(metal.hallmark)}. ` : 'No readable hallmark. '}${metal.purity === 'Unknown' ? 'Select purity only if you can confirm it, or leave Unknown.' : 'Check the purity against the piece.'}</p>
         ${details.metals.length > 1 ? `<button type="button" class="text-button" data-remove-metal="${index}">Remove metal ${index + 1}</button>` : ''}</div>`).join('')}</div>
       <fieldset><legend>Stones</legend><p class="helper">Select all that you can confirm. Appearance alone may not identify a stone.</p><div class="stones">${STONES.map((stone) => `<label class="stone"><input type="checkbox" value="${escape(stone)}" ${details.stones.includes(stone) ? 'checked' : ''} />${escape(stone)}</label>`).join('')}</div></fieldset>
-      <p class="helper">Unknown is okay. These are photo-based suggestions, ready for your check.</p>
+      <p class="helper">Unknown is okay. These are photo-based suggestions, ready for your check.</p></div>
     </form>
     ${servicesCard()}
     ${estimateCard()}
@@ -332,8 +341,9 @@ function bindReview() {
     const footer = document.querySelector('.actions');
     footer.innerHTML = `<button type="submit" form="item-form" class="primary" ${state.repairBusy ? 'disabled' : ''}>Confirm estimate</button>`;
   };
+  document.querySelector('#toggle-item-details').addEventListener('click',()=>{state.itemDetailsOpen=!(document.querySelector('#toggle-item-details').getAttribute('aria-expanded')==='true');render();});
   bindCustomer({ state, searchCustomers: text => client.query(api.customers.search, { text }), markChanged, render });
-  document.querySelector('#item-type').addEventListener('change', (event) => { state.details.itemType = event.target.value; markChanged(); });
+  document.querySelector('#item-type').addEventListener('change', (event) => { state.details.itemType = event.target.value; markChanged(); render(); });
   document.querySelectorAll('[data-metal]').forEach((select) => select.addEventListener('change', () => {
     state.details.metals[Number(select.dataset.metal)].metal = select.value;
     state.details.metals[Number(select.dataset.metal)].purity = 'Unknown';
@@ -364,9 +374,20 @@ function bindReview() {
     const repair=state.repairs.find(entry=>entry.id===Number(input.dataset.repairMetal));
     const selected=new Set(repair.metalIndexes ?? []);
     if(input.checked) selected.add(Number(input.value)); else selected.delete(Number(input.value));
-    repair.metalIndexes=[...selected].sort((a,b)=>a-b);repair.override=null;
+    repair.metalIndexes=[...selected].sort((a,b)=>a-b);repair.override=null;repair.source='manual';
     document.querySelector(`[data-reset-price="${repair.id}"]`).hidden=true;
-    markChanged();refreshPrices();
+    markChanged();render();
+  }));
+  document.querySelectorAll('[data-all-metals], [data-apply-metals]').forEach(button=>button.addEventListener('click',()=>{
+    const repair=state.repairs.find(entry=>entry.id===Number(button.dataset.allMetals || button.dataset.applyMetals));
+    const indexes=button.dataset.allMetals ? state.details.metals.map((_,index)=>index) : repair.metalIndexes;
+    const targets=button.dataset.allMetals ? [repair] : state.repairs;
+    targets.forEach(entry=>{entry.metalIndexes=[...indexes];entry.override=null;entry.source='manual';});
+    markChanged();render();
+  }));
+  document.querySelectorAll('[data-quick-service]').forEach(button=>button.addEventListener('click',()=>{
+    const repair=state.repairs.find(entry=>entry.id===Number(button.dataset.quickService));
+    repair.serviceCode=button.dataset.code;repair.override=null;repair.source='manual';markChanged();render();
   }));
   document.querySelectorAll('[data-damage]').forEach((input) => input.addEventListener('input', () => {
     const id = Number(input.dataset.damage);
@@ -374,6 +395,7 @@ function bindReview() {
     repair.damage = input.value;
     repair.source = 'manual';
     alignRepairFields(); markChanged();
+    if(!repair.serviceCode){const choices=document.querySelector(`[data-picker="${repair.id}"]`).closest('.repair-row').querySelector('.quick-services');if(choices){choices.innerHTML=suggestServices(repair.damage,state.details.itemType).map(service=>`<button type="button" class="quick-service" data-code="${service.code}">${escape(service.name)}<small>${service.code}</small></button>`).join('');choices.querySelectorAll('button').forEach(button=>button.addEventListener('click',()=>{repair.serviceCode=button.dataset.code;repair.override=null;repair.source='manual';markChanged();render();}));}}
   }));
   document.querySelectorAll('[data-picker]').forEach((picker) => {
     const repair = state.repairs.find(entry => entry.id === Number(picker.dataset.picker));
@@ -422,8 +444,11 @@ function bindReview() {
     state.repairs = state.repairs.filter((repair) => repair.id !== Number(button.dataset.removeRepair));
     state.confirmed = false; render();
   }));
-  document.querySelector('#close-up')?.addEventListener('click', () => {
-    state.screen = 'capture'; state.error = ''; render(); window.scrollTo(0, 0);
+  document.querySelector('#close-up')?.addEventListener('click',()=>document.querySelector('#close-up-file').click());
+  document.querySelector('#close-up-file')?.addEventListener('change',async event=>{
+    const previous=state.photos.length;
+    await importFiles(event);
+    if(state.photos.length>previous) await analyzeRepairs();
   });
   document.querySelectorAll('[data-amount], [data-extra]').forEach(input=>input.addEventListener('input',()=>{
     const repair=state.repairs.find(entry=>entry.id===Number(input.dataset.amount || input.dataset.extra));

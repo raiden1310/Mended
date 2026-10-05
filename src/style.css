@@ -234,3 +234,12 @@ textarea:focus-visible { outline: 2px solid var(--brand); outline-offset: 4px; }
 .service-metals legend { font-size: 14px; line-height: 20px; font-weight: 500; color: #232326; }
 .metal-choice { display: flex; align-items: center; gap: 8px; padding: 12px; border-radius: 12px; background: #F7F5F1; font-size: 14px; line-height: 20px; min-width: 0; overflow-wrap: anywhere; }
 .metal-choice input { flex-shrink: 0; width: 18px; height: 18px; min-height: 18px; margin: 0; padding: 0; accent-color: var(--brand); }
+
+/* Approved intake shortcuts, within the existing Mended palette and type scale. */
+.quick-services { display: grid; gap: 8px; margin-top: 16px; }
+.quick-service { min-height: 44px; padding: 12px; border: 0; border-radius: 12px; background: #F7F5F1; color: var(--brand); text-align: left; font-size: 13px; line-height: 18px; font-weight: 500; }
+.quick-service:hover { background: #4B2A5A0D; }
+.quick-service small { display: block; margin-top: 4px; color: var(--muted); font-size: 13px; font-weight: 400; }
+.item-summary p:first-child { font-weight: 500; }
+#item-edit-fields > .section-heading { margin-top: 8px; }
+.signature-sheet #signature-save { display: block; width: 100%; margin-top: 8px; }
