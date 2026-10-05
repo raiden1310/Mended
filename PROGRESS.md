@@ -3,3 +3,4 @@
 2026-10-05 — Customer selection confirmed working by the user: one name-or-phone search on Review Estimate, fictional workbook customers in Convex, replace/clear selection; milestone 4 resumes next.
 2026-10-05 — Milestone 4 confirmed working by the user: numbered repair tickets, editable in-house due dates, finger signatures saved in Convex, and labeled store/customer print copies.
 2026-10-05 — Core flow ends at milestone 4. Milestone 5 removed from PLAN.md at the user's request.
+2026-10-05 — Native camera capture confirmed working by the user on iPhone Safari: one photo at a time, native accept/retake controls, and existing-photo uploads retained.
