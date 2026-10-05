@@ -8,13 +8,19 @@
  * @module
  */
 
+import type * as itemAnalysis from "../itemAnalysis.js";
+import type * as repairPrices from "../repairPrices.js";
+
 import type {
   ApiFromModules,
   FilterApi,
   FunctionReference,
 } from "convex/server";
 
-declare const fullApi: ApiFromModules<{}>;
+declare const fullApi: ApiFromModules<{
+  itemAnalysis: typeof itemAnalysis;
+  repairPrices: typeof repairPrices;
+}>;
 
 /**
  * A utility for referencing Convex functions in your app's public API.
@@ -44,4 +50,6 @@ export declare const internal: FilterApi<
 
 export declare const components: {
   staticHosting: import("@convex-dev/static-hosting/_generated/component.js").ComponentApi<"staticHosting">;
+  agent: import("@convex-dev/agent/_generated/component.js").ComponentApi<"agent">;
+  rateLimiter: import("@convex-dev/rate-limiter/_generated/component.js").ComponentApi<"rateLimiter">;
 };

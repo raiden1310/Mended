@@ -16,7 +16,7 @@ export function startSplash(container, onComplete = () => {}) {
     onComplete();
   }
   function motionChanged(event) { if (event.matches) finish(); }
-  if (reducedMotion.matches) { finish(); return; }
+  if (video.ended || reducedMotion.matches) { finish(); return; }
   video.muted = true;
   video.addEventListener('playing', () => { if (!finished) container.classList.add('playing'); });
   video.addEventListener('ended', finish, { once: true });

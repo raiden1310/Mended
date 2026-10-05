@@ -4,19 +4,19 @@ Read this before building or changing any screen. If a choice isn't covered here
 ## 1. The feeling, in labels
 1.	The services list is the largest text on the review screen
 2.	Unidentified damages get color. Everything else is neutral
-3.	No price appears until the associate confirms the damages/repair services needed
+3.	Typical catalog price appears immediately after a service is selected, including AI-selected services
 This is what I want the user experience to feel like: Precise and Calm, like a surgeon.
 
 
 ## 2. References, one per component
-1.	Screen to capture item images and review them: https://pin.it/3suPkytYx 
-Take: the main card and the horizontal scroll feature. 
+1.	Screen to capture item images and review them: https://pin.it/3suPkytYx
+Take: the main card and the horizontal scroll feature.
 Ignore: the color palette and font
 2.	Review screen: /Users/administrator/build-sprint-app/references/review-screen.png
 Take: the layout of cards and sections
 Ignore: the color palette and font. My flight text. Image of person
 3.	Repair ticket: /Users/administrator/build-sprint-app/references/repair-ticket.png
-Take: Invoice number for Repair ticket number, Dates, Customer card and info without the image/avatar, Item details card for services and price, Total for total estimate. 
+Take: Invoice number for Repair ticket number, Dates, Customer card and info without the image/avatar, Item details card for services and price, Total for total estimate.
 Ignore: the color palette and font. Replaces CTAs with Sign and Save
 4.	Customer signature card: /Users/administrator/build-sprint-app/referencescustomer-signature-card.png and /Users/administrator/build-sprint-app/referencescustomer-signature.png
 Take: The Invoice card pop up from the bottom for customer signature. Customer should be able to sign this digitally as shown in the second image.
@@ -76,3 +76,12 @@ Button: Start capturing
 - One main action per screen
 - Every AI answer can be corrected in one tap
 - No color or size outside the ones in DESIGN.md without asking
+
+## Review layout (approved)
+Page heading: Review Estimate. First card: Item information, with fields sized to the available space in two columns and stone checkboxes in two columns. Second card: Services, showing “Repair services will appear here” until service identification is built.
+
+Milestone 2: Services contains editable damage and repair service fields, evidence photo numbers, and add/remove controls. Close-ups are optional. Typical catalog base prices appear immediately for confirmed 14K, 18K, 22K, 24K, or platinum. Unknown metal or purity needs confirmation; unsupported metals and services not offered for 24K are explained without substituting prices.
+
+Services layout (approved): Damage is editable free text in the left column. Repair service is a searchable choice from all 93 Service Catalog entries in Jewelry_Repair_Price_Catalog.xlsx in the right column. AI leaves the service unselected if the exact catalog variant is uncertain.
+
+Approved 5 Oct: Damage and service search boxes share aligned labels and a matching height that grows with the damage text. AI checks visible scuffs and dirt, suggesting applicable catalog cleaning/polishing services. Prices are USD typical base prices from the workbook, with units and exclusions shown; extra units and add-ons are not calculated in this change.

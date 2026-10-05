@@ -5,7 +5,7 @@
   width: min(100vw, 600px);
   height: min(100vw, 600px);
   object-fit: cover;
-  visibility: hidden;
+  visibility: visible;
 }
 #splash.playing > video { visibility: visible; }
-#splash.playing > img { visibility: hidden; }
+#splash.playing > img { visibility: visible; }
