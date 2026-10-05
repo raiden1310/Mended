@@ -86,14 +86,15 @@ p { margin: 12px 0 0; }
 .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .section-heading > span { font-size: 13px; line-height: 18px; color: var(--muted); }
 .photos { display: flex; overflow-x: auto; gap: 16px; padding: 16px 0 8px; scrollbar-color: #B79454 #F7F5F1; scrollbar-width: thin; }
-.photo { flex: 0 0 160px; margin: 0; }
+.photo { position: relative; flex: 0 0 160px; margin: 0; }
 .photo img { display: block; width: 160px; height: 160px; border-radius: 12px; object-fit: cover; background: #FFFFFF; }
 figcaption { margin-top: 8px; }
 .text-button, .remove { border: 0; background: transparent; color: var(--brand); min-height: 44px; padding: 8px 0; font-size: 13px; line-height: 18px; font-weight: 500; }
 .text-button:hover { text-decoration: underline; text-underline-offset: 4px; }
 .hallmark { display: block; }
 .hallmark.selected { color: #241A2B; text-decoration: underline; text-decoration-color: #B79454; text-underline-offset: 4px; }
-.remove { color: #A33A43; }
+.remove { position: absolute; top: 0; right: 0; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; }
+.remove svg { display: block; width: 32px; height: 32px; }
 .empty { color: var(--muted); padding: 24px 0; }
 .actions { margin-top: 24px; }
 .notice { border-radius: 12px; background: #FFFFFF; padding: 16px; margin-top: 24px; }

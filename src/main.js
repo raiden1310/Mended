@@ -38,7 +38,7 @@ function photoStrip(editable) {
   return `<div class="photos" aria-label="Captured photos">${state.photos.map((photo, index) => `<figure class="photo">
     <img src="${photo.data}" alt="Jewelry photo ${index + 1}${photo.hallmark ? ', hallmark close-up' : ''}" />
     <figcaption>Photo ${index + 1}${photo.hallmark ? ' · Hallmark' : ''}</figcaption>
-    ${editable ? `<button class="text-button hallmark${photo.hallmark ? ' selected' : ''}" data-mark="${photo.id}" aria-pressed="${photo.hallmark}">${photo.hallmark ? 'Hallmark photo' : 'Mark as hallmark'}</button><button class="remove" data-remove="${photo.id}" aria-label="Remove photo ${index + 1}">Remove</button>` : ''}
+    ${editable ? `<button class="text-button hallmark${photo.hallmark ? ' selected' : ''}" data-mark="${photo.id}" aria-pressed="${photo.hallmark}">${photo.hallmark ? 'Hallmark photo' : 'Mark as hallmark'}</button><button class="remove" data-remove="${photo.id}" aria-label="Remove photo ${index + 1}"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="16" fill="#A33A43"/><path d="M11 11l10 10m0-10L11 21" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"/></svg></button>` : ''}
   </figure>`).join('')}</div>`;
 }
 
@@ -77,7 +77,7 @@ function captureScreen() {
   const ready = state.photos.length >= 3 && state.photos.some((photo) => photo.hallmark);
   const locked = state.busy || state.processing;
   if (state.busy) return `<section class="card analysis" aria-busy="true"><h1>Identifying your piece</h1><p role="status">Checking the item, metals, hallmark, and stones. This may take a minute.</p><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></section>${photoStrip(false)}`;
-  return `<section class="intro"><h1>Accurate repairs.<br>Satisfied clients.</h1><p>Upload images of the item and AI will handle the rest for you</p></section>
+  return `<section class="intro"><h1>Accurate repairs.<br>Satisfied clients.</h1><p>Upload images of the item and Mended will handle the rest for you</p></section>
     <section class="card capture"><h2>Photograph one piece</h2><p>Take at least three images: the whole piece, a hallmark close-up, and another angle.</p>
       <button id="take-photo" type="button" class="camera" aria-label="Take photo" ${locked || state.photos.length >= MAX_PHOTOS ? 'disabled' : ''}><span class="camera-placeholder">${cameraIcon}<span class="camera-guidance">Keep the piece in focus<br>and use good light.</span><span class="camera-guidance">Click here to begin intake</span></span></button>
       <input id="camera-file" type="file" accept="image/*" capture="environment" hidden ${locked || state.photos.length >= MAX_PHOTOS ? 'disabled' : ''} />
@@ -88,7 +88,7 @@ function captureScreen() {
       ${state.photos.length ? photoStrip(!locked) : '<p class="empty">Your captured photos will appear here.</p>'}
       <p class="helper">${state.photos.length < 3 ? `${3 - state.photos.length} more photo${3 - state.photos.length === 1 ? '' : 's'} needed. ` : ''}${state.photos.some((photo) => photo.hallmark) ? 'Hallmark photo selected. An unreadable mark is okay.' : 'Mark one photo as the hallmark close-up.'}</p>
     </section>
-    <footer class="actions"><button id="analyze" class="primary" ${!ready || locked ? 'disabled' : ''}>${state.details ? (state.repairPhotosChanged ? 'Review damage with new photos' : 'Return to review') : 'Identify item'}</button></footer>`;
+    <footer class="actions"><button id="analyze" class="primary" ${!ready || locked ? 'disabled' : ''}>${state.details ? (state.repairPhotosChanged ? 'Review damage with new photos' : 'Return to review') : 'Get estimate'}</button></footer>`;
 }
 
 function resizedImage(source, width, height) {
