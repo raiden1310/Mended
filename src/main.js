@@ -1,3 +1,5 @@
+import {captureReady, combinedEstimate} from '../shared/multi-intake.js';
+import {suggestedDueDate, validateDueDate} from '../shared/ticket-rules.js';
 import {suggestServices, mergeRepairSuggestions} from '../shared/intake-shortcuts.js';
 import { photoPreview, bindPhotoLoading } from './photo-loading.js';
 import mendedLogo from '../design/logo/svg/mended_horizontal_full-color.svg';
@@ -15,11 +17,14 @@ import { ITEM_TYPES, METALS, PURITIES, STONES, MAX_PHOTOS, BUSY_MESSAGE } from '
 
 const client = import.meta.env.VITE_CONVEX_URL ? new ConvexHttpClient(import.meta.env.VITE_CONVEX_URL) : null;
 const app = document.querySelector('#app');
-const state = { screen: 'capture', photos: [], details: null, busy: false, processing: false, error: '', confirmed: false, repairs: [], assessment: null, repairError: '', repairBusy: false, repairPhotosChanged: false, estimate: null, estimateError: '', estimatePending: false, rush: false, rhodium: false };
+let itemSequence=0;
+const newItem=()=>({id:++itemSequence,photos:[],details:null,repairs:[],assessment:null,repairError:'',repairBusy:false,repairPhotosChanged:false,estimate:null,estimateError:'',estimatePending:false,rush:false,rhodium:false,itemDetailsOpen:undefined,dueDate:'',dueEdited:false,analysisError:''});
+const state={screen:'capture',items:[newItem()],active:0,busy:false,processing:false,error:'',confirmed:false};
+for(const key of Object.keys(state.items[0]).filter(key=>key!=='id')) Object.defineProperty(state,key,{get:()=>state.items[state.active][key],set:value=>{state.items[state.active][key]=value;}});
+const todayDate=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
+async function loadTicket(id){const ticket=await client.query(api.combinedTickets.get,{id});if(!ticket)throw new Error('Ticket not found');ticket.items=[];let after=-1;while(true){const rows=await client.query(api.combinedTickets.items,{id,after});ticket.items.push(...rows);if(rows.length<10)break;after=rows.at(-1).position;}return ticket;}
 let photoId = 0;
 let repairId = 0;
-let estimateRequest = 0;
-let estimateTimer;
 state.customer = null;
 state.customerSearch = '';
 state.ticket = null;
@@ -28,8 +33,7 @@ state.ticketRequestSignature = null;
 
 function startNewPiece(keepCustomer = false) {
   const customer = keepCustomer === true ? state.customer : null;
-  state.ticket=null;state.ticketRequestId=null;state.ticketRequestSignature=null;state.customer=customer;state.itemDetailsOpen=undefined;state.customerSearch='';state.rush=false;state.rhodium=false;state.estimate=null;
-  state.photos=[];state.details=null;state.repairs=[];state.assessment=null;state.repairError='';state.repairPhotosChanged=false;state.screen='capture';state.confirmed=false;state.error='';
+  state.items=[newItem()];state.active=0;state.ticket=null;state.ticketRequestId=null;state.ticketRequestSignature=null;state.customer=customer;state.customerSearch='';state.screen='capture';state.confirmed=false;state.error='';
   render();window.scrollTo(0,0);
 }
 const usd = amount => new Intl.NumberFormat('en-US', {style:'currency',currency:'USD'}).format(amount);
@@ -56,13 +60,16 @@ function render() {
   if (state.screen === 'ticket') {
     app.innerHTML = `${pageHeader('Repair ticket', state.ticket.status === 'signed' ? '' : 'Edit estimate')}${state.error?`<p class="notice error" role="alert">${escape(state.error)}</p>`:''}${ticketScreen(state.ticket)}`;
     bindPhotoLoading(app);
-    bindTicket({state,render,startNew:()=>startNewPiece(),nextForCustomer:()=>startNewPiece(true),edit:()=>{state.screen='review';state.confirmed=false;state.ticketRequestId=null;state.error='';render();window.scrollTo(0,0);},save:async args=>{await client.mutation(api.tickets.sign,args);const ticket=await client.query(api.tickets.get,{id:args.id});if(!ticket)throw new Error('Ticket not found');return ticket;}});
+    bindTicket({state,render,startNew:()=>startNewPiece(),nextForCustomer:()=>startNewPiece(true),edit:()=>{state.screen='review';state.confirmed=false;state.ticketRequestId=null;state.error='';render();window.scrollTo(0,0);},save:async args=>{const saved=await client.query(api.combinedTickets.get,{id:args.id});if(saved?.status==='signed')return await loadTicket(args.id);for(const item of state.ticket.items)await client.mutation(api.combinedTickets.updateDue,{id:item.id,dueDate:item.dueDate});await client.mutation(api.combinedTickets.sign,{id:args.id,signature:args.signature});return await loadTicket(args.id);}});
     return;
   }
   app.innerHTML = `${pageHeader(reviewing ? 'Review estimate' : 'Repair intake', reviewing ? 'Review photos' : '')}
     ${state.error ? `<p class="notice error" role="alert">${escape(state.error)}</p>` : ''}
     ${reviewing ? reviewScreen() : captureScreen()}`;
   bindPhotoLoading(app);
+  document.querySelectorAll('[data-open-item]').forEach(button=>button.addEventListener('click',()=>{state.active=Number(button.dataset.openItem);state.error='';render();}));
+  document.querySelectorAll('[data-delete-item]').forEach(button=>button.addEventListener('click',()=>{state.items.splice(Number(button.dataset.deleteItem),1);if(!state.items.length)state.items=[newItem()];state.active=Math.min(state.active,state.items.length-1);state.ticketRequestId=null;state.error='';render();}));
+  document.querySelector('#add-item')?.addEventListener('click',()=>{if(!captureReady(state.items[state.active]) || state.busy || state.processing)return;state.items.push(newItem());state.active=state.items.length-1;state.ticketRequestId=null;render();window.scrollTo(0,0);});
   if (!reviewing) {
     document.querySelector('#capture-clear-customer')?.addEventListener('click',()=>{state.customer=null;render();});
     document.querySelector('#take-photo')?.addEventListener('click', () => document.querySelector('#camera-file').click());
@@ -86,12 +93,12 @@ function render() {
 }
 
 function captureScreen() {
-  const ready = state.photos.length >= 3 && state.photos.some((photo) => photo.hallmark);
+  const ready = state.items.every(captureReady);
   const locked = state.busy || state.processing;
-  if (state.busy) return `<section class="card analysis" aria-busy="true"><h1>Identifying your piece</h1><p role="status">Checking the item, metals, hallmark, and stones. This may take a minute.</p><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></section>${photoStrip(false)}`;
+  if (state.busy) return `<section class="card analysis" aria-busy="true"><h1>Checking item ${state.active+1} of ${state.items.length}</h1><p role="status">Each item is analyzed separately. Completed items stay saved here while the others are checked.</p><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></section>${photoStrip(false)}`;
   return `<section class="intro"><h1>Accurate repairs.<br>Satisfied clients.</h1><p>Upload images of the item and Mended will handle the rest for you</p></section>
     ${state.customer ? `<p class="notice">Next piece for ${escape(state.customer.name)} <button id="capture-clear-customer" type="button" class="text-button">Change customer</button></p>` : ''}
-    <section class="card capture"><h2>Photograph one piece</h2><p>Take at least three images: the whole piece, a hallmark close-up, and another angle.</p>
+    ${itemNavigation()}<section class="card capture"><h2>Photograph item ${state.active+1}</h2><p>Take at least three images: the whole piece, a hallmark close-up, and another angle.</p>
       <button id="take-photo" type="button" class="camera" aria-label="Take photo" ${locked || state.photos.length >= MAX_PHOTOS ? 'disabled' : ''}><span class="camera-placeholder">${cameraIcon}<span class="camera-guidance">Keep the piece in focus<br>and use good light.</span><span class="camera-guidance">Click here to begin intake</span></span></button>
       <input id="camera-file" type="file" accept="image/*" capture="environment" hidden ${locked || state.photos.length >= MAX_PHOTOS ? 'disabled' : ''} />
       <label class="upload${locked || state.photos.length >= MAX_PHOTOS ? ' disabled' : ''}">Or Upload Images<input id="files" aria-label="Or Upload Images" type="file" accept="image/*" multiple ${locked || state.photos.length >= MAX_PHOTOS ? 'disabled' : ''} /></label>
@@ -101,7 +108,7 @@ function captureScreen() {
       ${state.photos.length ? photoStrip(!locked) : '<p class="empty">Your captured photos will appear here.</p>'}
       <p class="helper">${state.photos.length < 3 ? `${3 - state.photos.length} more photo${3 - state.photos.length === 1 ? '' : 's'} needed. ` : ''}${state.photos.some((photo) => photo.hallmark) ? 'Hallmark photo selected. An unreadable mark is okay.' : 'Mark one photo as the hallmark close-up.'}</p>
     </section>
-    <footer class="actions"><button id="analyze" class="primary" ${!ready || locked ? 'disabled' : ''}>${state.details ? (state.repairPhotosChanged ? 'Review damage with new photos' : 'Return to review') : 'Get estimate'}</button></footer>`;
+    <footer class="actions"><button id="analyze" class="primary" ${!ready || locked ? 'disabled' : ''}>Get estimate</button><button id="add-item" class="secondary" ${!captureReady(state.items[state.active]) || locked ? 'disabled' : ''}>Add another item</button></footer>`;
 }
 
 function resizedImage(source, width, height) {
@@ -159,23 +166,23 @@ async function analyzeRepairs() {
 }
 
 async function analyze() {
-  if (state.busy || state.processing || state.photos.length < 3 || !state.photos.some((photo) => photo.hallmark)) return;
-  if (state.details) {
-    state.screen = 'review'; render(); window.scrollTo(0, 0);
-    if (state.repairPhotosChanged) await analyzeRepairs();
-    return;
-  }
-  state.busy = true; state.error = ''; render();
-  try {
-    if (!client) throw new Error('Missing backend configuration');
-    const result = await client.action(api.itemAnalysis.analyze, { photos: state.photos.map(({ data, hallmark }) => ({ data, hallmark })) });
-    if (result.status !== 'success') { state.error = result.message; }
-    else { state.details = result.details; state.screen = 'review'; state.confirmed = false; }
-  } catch { state.error = BUSY_MESSAGE; }
-  state.busy = false; render(); window.scrollTo(0, 0);
-  if (state.details && !state.assessment) await analyzeRepairs();
+ if(state.busy || state.processing || !state.items.every(captureReady))return;
+ state.busy=true;state.error='';
+ for(let index=0;index<state.items.length;index++){
+  state.active=index;const item=state.items[index];render();
+  try{
+   if(!item.details || item.analysisError){const result=await client.action(api.itemAnalysis.analyze,{photos:item.photos.map(({data,hallmark})=>({data,hallmark}))});
+    if(result.status!=='success'){item.analysisError=result.message;continue;}item.details=result.details;item.analysisError='';}
+   if(!item.assessment || item.repairPhotosChanged)await analyzeRepairs();
+   item.estimate=await client.query(api.estimates.calculate,estimateArgs());
+  }catch{item.analysisError=BUSY_MESSAGE;}
+ }
+ state.busy=false;state.active=Math.max(0,state.items.findIndex(item=>item.analysisError || !item.estimate?.complete));state.screen='review';render();window.scrollTo(0,0);
 }
-
+function manualDetails(){return {itemType:'Unknown',metals:[{metal:'Unknown',purity:'Unknown',hallmark:''}],stones:['Unknown']};}
+function itemNavigation(){return `<nav class="item-navigation" aria-label="Items">${state.items.map((item,index)=>`<button type="button" class="${index===state.active?'selected':''}" data-open-item="${index}" ${state.busy || state.processing || state.repairBusy?'disabled':''}>Item ${index+1}</button>`).join('')}</nav><div class="section-heading"><p class="helper">Photos belong only to this item.</p><button type="button" class="text-button danger" data-delete-item="${state.active}" ${state.busy || state.processing || state.repairBusy?'disabled':''}>Remove item</button></div>`;}
+function grandTotal(){const estimate=combinedEstimate(state.items);return `<p class="estimate-total">Combined estimate · ${state.items.length} item${state.items.length===1?'':'s'}<strong>${estimate.complete?usd(estimate.total):'Review all items'}</strong></p>`;}
+function accordionHeader(item,index){return `<button type="button" class="item-accordion-heading" data-open-item="${index}" aria-expanded="${index===state.active}" ${state.repairBusy || state.processing?'disabled':''}>${item.photos[0]?`<img src="${item.photos[0].data}" alt="" />`:''}<span>Item ${index+1} · ${escape(item.details?.itemType ?? 'Needs review')}<small>${item.analysisError?'Needs review':item.estimate?.complete?usd(item.estimate.total):'Complete this estimate'}</small></span><span aria-hidden="true">${index===state.active?'−':'+'}</span></button>`;}
 // Grow both boxes together so a longer damage description stays readable.
 function alignRepairFields() {
   document.querySelectorAll('.repair-fields').forEach(row => {
@@ -200,11 +207,11 @@ function priceText(repair) {
   return `Catalog: ${usd(repair.price.amount)} · ${escape(repair.price.basis)} · ${escape(repair.price.unit)}. ${repair.override != null ? 'Associate price entered.' : 'Typical base price.'}${(repair.metalIndexes?.length ?? 0) > 1 ? ' 80% of the summed metal prices.' : ''}`;
 }
 
-function estimateArgs() {
+function estimateArgs(item=state.items[state.active]) {
   return {
-    metals: state.details.metals.map(({metal,purity})=>({metal,purity})),
-    repairs: state.repairs.map(repair=>({serviceCode:repair.serviceCode,metalIndexes:state.details.metals.length === 1 ? [0] : (repair.metalIndexes ?? []),override:repair.override ?? null,extra:repair.extra ?? 0})),
-    rush:state.rush,rhodium:state.rhodium,
+    metals: item.details.metals.map(({metal,purity})=>({metal,purity})),
+    repairs: item.repairs.map(repair=>({serviceCode:repair.serviceCode,metalIndexes:item.details.metals.length === 1 ? [0] : (repair.metalIndexes ?? []),override:repair.override ?? null,extra:repair.extra ?? 0})),
+    rush:item.rush,rhodium:item.rhodium,
   };
 }
 
@@ -221,24 +228,19 @@ function estimateSummary() {
 function updateEstimateSummary() {
   const target=document.querySelector('#estimate-summary');
   if (target) target.innerHTML=estimateSummary();
+  const combined=document.querySelector("#combined-total");if(combined)combined.innerHTML=grandTotal();
+  document.querySelectorAll(".item-accordion-heading small").forEach((el,index)=>{const item=state.items[index];el.textContent=item.analysisError?"Needs review":item.estimate?.complete?usd(item.estimate.total):"Complete this estimate";});
 }
 
 function refreshEstimate() {
-  clearTimeout(estimateTimer);
-  const request=++estimateRequest;
-  state.estimate=null; state.estimateError=''; state.estimatePending=true;
-  updateEstimateSummary();
-  estimateTimer=setTimeout(async()=>{
-    try {
-      const result=await client.query(api.estimates.calculate,estimateArgs());
-      if (request!==estimateRequest) return;
-      state.estimate=result;
-    } catch {
-      if (request!==estimateRequest) return;
-      state.estimateError='Check your prices and fees. Use positive USD amounts or zero, with up to two decimal places.';
-    }
-    state.estimatePending=false; updateEstimateSummary();
-  },150);
+ const item=state.items[state.active];clearTimeout(item.estimateTimer);const version=(item.estimateVersion ?? 0)+1;item.estimateVersion=version;
+ const args=estimateArgs(item);item.estimate=null;item.estimateError='';item.estimatePending=true;updateEstimateSummary();
+ item.estimateTimer=setTimeout(async()=>{
+  try{const result=await client.query(api.estimates.calculate,args);if(item.estimateVersion!==version)return;item.estimate=result;
+   if(!item.dueEdited && item.repairs.length && item.repairs.every(repair=>repair.serviceCode))item.dueDate=suggestedDueDate(todayDate(),item.repairs.map(repair=>repair.serviceCode));
+  }catch{if(item.estimateVersion!==version)return;item.estimateError='Check your prices and fees. Use positive USD amounts or zero, with up to two decimal places.';}
+  item.estimatePending=false;if(state.screen==='review'){if(state.items[state.active]===item){const due=document.querySelector('#item-due');if(due)due.value=item.dueDate;}updateEstimateSummary();}
+ },150);
 }
 
 function estimateCard() {
@@ -247,11 +249,12 @@ function estimateCard() {
     <label class="fee-choice"><input id="rush-fee" type="checkbox" ${state.rush ? 'checked' : ''} />Rush job · +$50.00</label>
     <label class="fee-choice"><input id="rhodium-fee" type="checkbox" ${state.rhodium ? 'checked' : ''} ${eligible ? '' : 'disabled'} />Re-rhodium after bench work · +$10.00</label>
     <p class="helper">Re-rhodium fee applies to confirmed 14K or 18K white gold. Select fees only when needed. Enter other charges under the relevant service.</p>
-    <div id="estimate-summary" aria-live="polite">${estimateSummary()}</div>
+    <label class="field">Item due date<input id="item-due" type="date" min="${todayDate()}" value="${state.dueDate}" /></label><p class="helper">Each item has its own due date. Adjust for your bench schedule.</p><div id="estimate-summary" aria-live="polite">${estimateSummary()}</div>
   </section>`;
 }
 
 function refreshPrices() {
+  const item=state.items[state.active];
   const eligible=state.details.metals.some(({metal,purity})=>metal==='White gold' && ['14K / 585','18K / 750'].includes(purity));
   if (!eligible) state.rhodium=false;
   const rhodium=document.querySelector('#rhodium-fee');
@@ -263,6 +266,7 @@ function refreshPrices() {
     if (repair.priceKey === key) continue;
     repair.priceKey = key; repair.price = null; repair.priceError = '';
     const update = () => {
+      if(state.items[state.active]!==item || state.screen!=="review")return;
       const output = document.querySelector(`[data-price="${repair.id}"]`);
       if (output) output.innerHTML = priceText(repair);
       const amount=document.querySelector(`[data-amount="${repair.id}"]`);
@@ -290,7 +294,7 @@ function servicesCard() {
     <div class="section-heading"><h2>Services</h2><button type="button" id="add-service" class="text-button" ${state.repairBusy || state.repairs.length >= 12 ? 'disabled' : ''}>Add service</button></div>
     ${state.repairBusy ? '<p class="helper" role="status">Checking the photos for visible damage…</p><div class="skeleton"></div>' : `
     <p class="helper${state.repairError || state.assessment === 'unclear' ? ' attention' : ''}" role="status">${escape(message)}</p>
-    <div class="repair-list">${state.repairs.map((repair, index) => `<div class="repair-row">
+    ${state.repairError ? '<button type="button" id="retry-damage" class="text-button">Retry damage analysis for this item</button>' : ''}<div class="repair-list">${state.repairs.map((repair, index) => `<div class="repair-row">
       <div class="section-heading"><h3>Repair service ${index + 1}</h3><button type="button" class="text-button service-remove" data-remove-repair="${repair.id}" aria-label="Remove repair service ${index + 1}">Remove</button></div>
       <div class="repair-fields"><label class="field">Damage<textarea form="item-form" id="damage-${repair.id}" data-damage="${repair.id}" maxlength="160" rows="1" required placeholder="Describe the damage">${escape(repair.damage)}</textarea></label>
       <div class="service-picker" data-picker="${repair.id}"><label class="field" for="service-${repair.id}">Repair service</label><input id="service-${repair.id}" type="search" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="service-options-${repair.id}" autocomplete="off" placeholder="Search services" />
@@ -310,12 +314,11 @@ function servicesCard() {
   </section>`;
 }
 
-function reviewScreen() {
+function itemReviewScreen() {
+  if(!state.details)state.details=manualDetails();
   const details = state.details;
   const expanded=state.itemDetailsOpen ?? (details.itemType==='Unknown' || details.metals.some(metal=>metal.metal==='Unknown' || metal.purity==='Unknown') || details.stones.includes('Unknown'));
-  return `<section class="intro"><h1>Review Estimate</h1><p>Review the suggested details and correct anything that needs a closer look.</p></section>
-    ${state.confirmed ? '<p class="notice success" role="status">Estimate confirmed. These details stay here until you reload or start another piece.</p>' : ''}
-    ${customerCard(state)}
+  return `${state.analysisError?`<p class="notice error">${escape(state.analysisError)}</p><button type="button" id="retry-item" class="text-button">Retry this item</button><p class="helper">Or enter this item’s details and services below.</p>`:''}${itemNavigation()}
     <form id="item-form" class="card details">
       <div class="section-heading"><h2>Item information</h2><button type="button" id="toggle-item-details" class="text-button" aria-expanded="${expanded}" aria-controls="item-edit-fields">${expanded ? 'Close details' : 'Edit details'}</button></div>
       <div class="item-summary" ${expanded ? 'hidden' : ''}><p>${escape(details.itemType)}</p><p>${details.metals.map(metal=>`${escape(metal.metal)} · ${escape(metal.purity)}`).join('<br>')}</p><p class="helper">Stones: ${details.stones.map(escape).join(', ')}</p><p class="helper">Check these details against the piece.</p></div>
@@ -330,10 +333,16 @@ function reviewScreen() {
     ${servicesCard()}
     ${estimateCard()}
     <section class="photo-section"><div class="section-heading"><h2>Captured images</h2><button id="back" class="text-button">Review photos</button></div>${photoStrip(false)}</section>
-    <footer class="actions">${state.confirmed ? '<button id="new-piece" class="primary">Start another piece</button>' : `<button type="submit" form="item-form" class="primary" ${state.repairBusy ? 'disabled' : ''}>Confirm estimate</button>`}</footer>`;
+    `;
+}
+function reviewScreen(){return `<section class="intro"><h1>Review Estimate</h1><p>Review each item before confirming the combined ticket.</p></section>${customerCard(state)}${state.items.map((item,index)=>`<section class="item-accordion">${accordionHeader(item,index)}${index===state.active?`<div class="item-accordion-body">${itemReviewScreen()}</div>`:''}</section>`).join('')}<section id="combined-total" class="card">${grandTotal()}</section><footer class="actions"><button type="submit" form="item-form" class="primary" ${state.repairBusy?'disabled':''}>Confirm estimate</button></footer>`;
 }
 
 function bindReview() {
+  document.querySelector('#retry-damage')?.addEventListener('click',analyzeRepairs);
+  document.querySelector('#item-due').addEventListener('change',event=>{state.dueDate=event.target.value;state.dueEdited=true;state.ticketRequestId=null;});
+  document.querySelector('#retry-item')?.addEventListener('click',async()=>{state.busy=true;app.inert=true;const item=state.items[state.active];try{const result=await client.action(api.itemAnalysis.analyze,{photos:item.photos.map(({data,hallmark})=>({data,hallmark}))});if(result.status==='success'){item.details=result.details;item.analysisError='';await analyzeRepairs();}else item.analysisError=result.message;}catch{item.analysisError=BUSY_MESSAGE;}finally{state.busy=false;app.inert=false;render();}});
+
   const markChanged = () => {
     state.confirmed = false;
     state.ticketRequestId = null;
@@ -465,42 +474,30 @@ function bindReview() {
   }));
   document.querySelector('#rush-fee').addEventListener('change',event=>{state.rush=event.target.checked;markChanged();refreshEstimate();});
   document.querySelector('#rhodium-fee').addEventListener('change',event=>{state.rhodium=event.target.checked;markChanged();refreshEstimate();});
-  document.querySelector('#item-form').addEventListener('submit', async (event) => {
-    event.preventDefault();
-    if (state.repairBusy) return;
-    if (!state.customer) { state.error='Search and select a customer before creating the repair ticket.';render();document.querySelector('#customer-search').focus();return; }
-    if (state.estimateError) { state.error=state.estimateError; render(); return; }
-    const button = document.querySelector('.actions button'); button.disabled = true; button.textContent = 'Checking your review…';
-    app.inert=true;
-    const reviewArgs={photoCount:state.photos.length,repairs:state.repairs.map(({damage,serviceCode,photo})=>({damage,serviceCode,photo}))};
-    const amounts=estimateArgs();
-    const signature=value=>JSON.stringify(value,(_key,entry)=>typeof entry==='number' && !Number.isFinite(entry) ? 'invalid amount' : entry);
-    const snapshot=signature([reviewArgs,amounts,state.customer?.id ?? null,state.details]);
-    try {
-      const result = await client.action(api.itemAnalysis.reviewRepairs, reviewArgs);
-      if (!result.ok) state.error=result.message;
-      else {
-        const estimate=await client.query(api.estimates.calculate,amounts);
-        const currentReview={photoCount:state.photos.length,repairs:state.repairs.map(({damage,serviceCode,photo})=>({damage,serviceCode,photo}))};
-        if (snapshot!==signature([currentReview,estimateArgs(),state.customer?.id ?? null,state.details])) state.error='The estimate changed while checking. Review it and confirm again.';
-        else if (estimate.complete) {
-          if(state.ticketRequestSignature!==snapshot || !state.ticketRequestId){state.ticketRequestId=crypto.randomUUID();state.ticketRequestSignature=snapshot;}
-          const today=new Date();const issuedDate=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
-          const id=await client.action(api.tickets.create,{
-            requestId:state.ticketRequestId,customerId:state.customer.id,details:state.details,
-            photos:state.photos.map(({data,hallmark})=>({data,hallmark})),
-            repairs:reviewArgs.repairs.map((repair,index)=>({...repair,metalIndexes:amounts.repairs[index].metalIndexes,override:amounts.repairs[index].override,extra:amounts.repairs[index].extra})),
-            rush:amounts.rush,rhodium:amounts.rhodium,issuedDate,
-          });
-          state.ticket=await client.query(api.tickets.get,{id});
-          if(!state.ticket)throw new Error('Ticket not found');
-          state.screen='ticket';state.confirmed=true;state.estimate=estimate;state.error='';
-        }
-        else state.error='Choose all services and enter any missing prices before confirming.';
-      }
-    } catch { state.error = 'Could not create the ticket. Check your connection and try again.'; }
-    finally { app.inert=false; }
-    render(); window.scrollTo(0, 0);
+  document.querySelector('#item-form').addEventListener('submit',async event=>{
+   event.preventDefault();if(state.repairBusy)return;
+   if(!state.customer){state.error='Search and select a customer before creating the repair ticket.';render();document.querySelector('#customer-search').focus();return;}
+   state.items.forEach(item=>{clearTimeout(item.estimateTimer);item.estimateVersion=(item.estimateVersion ?? 0)+1;item.estimatePending=false;});app.inert=true;const button=document.querySelector('.actions .primary');button.textContent='Checking every item…';button.disabled=true;
+   try{
+    const issuedDate=todayDate();
+    for(let index=0;index<state.items.length;index++){
+     const item=state.items[index];state.active=index;
+     if(!captureReady(item) || !item.details)throw new Error(`Review photos and details for item ${index+1}.`);
+     const reviewed=await client.action(api.itemAnalysis.reviewRepairs,{photoCount:item.photos.length,repairs:item.repairs.map(({damage,serviceCode,photo})=>({damage,serviceCode,photo}))});
+     if(!reviewed.ok)throw new Error(`Item ${index+1}: ${reviewed.message}`);
+     item.estimate=await client.query(api.estimates.calculate,estimateArgs(item));if(!item.estimate.complete)throw new Error(`Complete the prices for item ${index+1}.`);
+     if(!item.dueEdited)item.dueDate=suggestedDueDate(issuedDate,item.repairs.map(repair=>repair.serviceCode));validateDueDate(item.dueDate,issuedDate);
+    }
+    const snapshot=JSON.stringify(state.items.map(item=>[item.details,item.photos,item.repairs.map(({damage,serviceCode,photo,metalIndexes,override,extra})=>({damage,serviceCode,photo,metalIndexes,override,extra})),item.rush,item.rhodium,item.dueDate]).concat([state.customer.id,issuedDate]));
+    if(state.ticketRequestSignature!==snapshot || !state.ticketRequestId){state.ticketRequestId=crypto.randomUUID();state.ticketRequestSignature=snapshot;}
+    const id=await client.mutation(api.combinedTickets.begin,{requestId:state.ticketRequestId,customerId:state.customer.id,expected:state.items.length,issuedDate});
+    for(let position=0;position<state.items.length;position++){
+     button.textContent=`Saving item ${position+1} of ${state.items.length}…`;const item=state.items[position],amounts=estimateArgs(item);
+     await client.action(api.combinedTickets.addItem,{id,position,details:item.details,photos:item.photos.map(({data,hallmark})=>({data,hallmark})),repairs:item.repairs.map((repair,index)=>({damage:repair.damage,serviceCode:repair.serviceCode,photo:repair.photo,...amounts.repairs[index]})),rush:item.rush,rhodium:item.rhodium,dueDate:item.dueDate});
+    }
+    await client.mutation(api.combinedTickets.finish,{id});state.ticket=await loadTicket(id);state.screen='ticket';state.confirmed=true;state.error='';
+   }catch(error){state.error=error.message || 'Could not save the intake. Check your connection and try again.';}
+   finally{app.inert=false;render();window.scrollTo(0,0);}
   });
   document.querySelector('#back').addEventListener('click', returnToPhotos);
   document.querySelector('#header-back')?.addEventListener('click', returnToPhotos);

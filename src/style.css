@@ -243,3 +243,22 @@ textarea:focus-visible { outline: 2px solid var(--brand); outline-offset: 4px; }
 .item-summary p:first-child { font-weight: 500; }
 #item-edit-fields > .section-heading { margin-top: 8px; }
 .signature-sheet #signature-save { display: block; width: 100%; margin-top: 8px; }
+
+/* Independent items share the approved rounded surfaces and brand. */
+.item-navigation { display:flex; gap:8px; overflow-x:auto; padding:4px 0 12px; }
+.item-navigation button { flex-shrink:0; padding:10px 14px; border:0; border-radius:12px; background:#FFFFFF; color:#4B2A5A; }
+.item-navigation button.selected { background:#4B2A5A; color:#FFFFFF; }
+.item-accordion { margin:24px 0; background:#FFFFFF; border-radius:24px; box-shadow:0 8px 28px rgb(36 26 43 / 5%); overflow:visible; }
+.item-accordion-heading { display:flex; align-items:center; gap:12px; width:100%; border:0; background:transparent; padding:18px; text-align:left; color:#241A2B; border-radius:24px; }
+.item-accordion-heading img { width:56px; height:56px; object-fit:cover; border-radius:12px; }
+.item-accordion-heading span:nth-last-child(2) { flex:1; min-width:0; font-size:18px; font-weight:600; }
+.item-accordion-heading small { display:block; margin-top:4px; font-size:13px; font-weight:400; color:#6B6870; }
+.item-accordion-heading span:last-child { font-size:24px; }
+.item-accordion-body { padding:0 18px 18px; }
+.item-accordion-body .card, .item-accordion-body .photo-section { box-shadow:none; margin:20px 0; padding:0; border-radius:0; }
+.item-accordion-body .item-navigation { display:none; }
+.item-accordion-body .section-heading .danger { color:#A33A43; }
+.actions .secondary { width:100%; margin-top:12px; padding:14px; color:#4B2A5A; background:#FFFFFF; border:0; border-radius:16px; }
+.ticket-item { margin:28px 0; }
+.ticket-item > .field { margin:12px 0 24px; }
+@media print { .ticket-item { break-before:auto; } .ticket-item > .section-heading { break-after:avoid; } }

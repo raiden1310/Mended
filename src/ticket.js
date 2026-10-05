@@ -14,7 +14,7 @@ function signatureImage(strokes) {
   return `<svg viewBox="${left} ${top} ${width} ${height}" role="img" aria-label="Customer signature">${strokes.map(stroke=>`<polyline points="${stroke.map(point=>`${point.x*600},${point.y*600}`).join(' ')}" fill="none" stroke="#241A2B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />`).join('')}</svg>`;
 }
 
-function contents(ticket, printable=false) {
+function singleContents(ticket, printable=false) {
   return `<section class="ticket-summary"><p class="helper">${number(ticket)} · ${ticket.status==='signed'?'Signed':'Awaiting signature'}</p><p class="ticket-total">${usd(ticket.total)}</p>
     <div class="ticket-dates"><div><p class="helper">Issued</p><p>${date(ticket.issuedDate)}</p></div><div>${printable || ticket.status==='signed' ? `<p class="helper">Due</p><p>${date(ticket.dueDate)}</p>` : `<label class="field" for="ticket-due">Due date<input id="ticket-due" type="date" min="${ticket.issuedDate}" value="${ticket.dueDate}" required /></label>`}</div></div>
     ${printable || ticket.status==='signed' ? '' : '<p class="helper">Suggested from the longest in-house repair time, counting weekdays. Adjust for your bench schedule and holidays.</p>'}</section>
@@ -26,6 +26,15 @@ function contents(ticket, printable=false) {
     ${ticket.status==='signed'?`<section class="card ticket-section"><h2>Customer signature</h2><div class="saved-signature">${signatureImage(ticket.signature)}</div><p class="helper">Signed ${escape(new Date(ticket.signedAt).toLocaleString())}</p></section>`:''}`;
 }
 
+function contents(ticket,printable=false){
+ if(!ticket.items)return singleContents(ticket,printable);
+ return `<section class="ticket-summary"><p class="helper">${number(ticket)} · ${ticket.status==='signed'?'Signed':'Awaiting signature'} · ${ticket.items.length} items</p><p class="ticket-total">${usd(ticket.total)}</p><p class="helper">Issued ${date(ticket.issuedDate)}</p></section><section class="card ticket-section"><h2>Customer</h2><p>${escape(ticket.customer.name)}</p><p class="helper">${escape(ticket.customer.phone)}</p></section>${ticket.items.map((item,index)=>{
+  const single=singleContents({...ticket,...item,status:'draft'},printable);
+  const start=single.indexOf('<section class="card ticket-section"><h2>Item information');
+  return `<section class="ticket-item"><div class="section-heading"><h2>Item ${index+1} · ${escape(item.details.itemType)}</h2><strong>${usd(item.total)}</strong></div>${printable || ticket.status==='signed'?`<p class="helper">Due ${date(item.dueDate)}</p>`:`<label class="field">Item ${index+1} due date<input type="date" data-item-due="${index}" value="${item.dueDate}" min="${ticket.issuedDate}" required /></label>`}${single.slice(start)}</section>`;
+ }).join('')}${ticket.status==='signed'?`<section class="card ticket-section"><h2>Customer signature</h2><div class="saved-signature">${signatureImage(ticket.signature)}</div><p class="helper">One signature approves all items, prices and due dates. Signed ${escape(new Date(ticket.signedAt).toLocaleString())}</p></section>`:''}`;
+}
+
 export function ticketScreen(ticket) {
   return `<div class="ticket"><section class="intro"><h1>Your Repair Ticket</h1></section>${ticket.status==='signed'?'<p class="notice success" role="status">Signed ticket saved.</p>':''}${contents(ticket)}
     <footer class="actions">${ticket.status==='signed'?`<button id="print-ticket" class="primary">Print two copies</button><button id="ticket-next-customer" class="text-button ticket-secondary">Next piece for ${escape(ticket.customer.name)}</button><button id="ticket-new" class="text-button ticket-secondary">Start another piece</button>`:'<button id="sign-ticket" class="primary">Sign and save</button><button id="edit-ticket" class="text-button ticket-secondary">Edit estimate</button>'}</footer></div>
@@ -34,6 +43,7 @@ export function ticketScreen(ticket) {
 
 export function bindTicket({state,render,save,edit,startNew,nextForCustomer}) {
   const ticket=state.ticket;
+  document.querySelectorAll('[data-item-due]').forEach(input=>input.addEventListener('change',()=>{ticket.items[Number(input.dataset.itemDue)].dueDate=input.value;state.error='';}));
   document.querySelector('#ticket-due')?.addEventListener('change',event=>{ticket.dueDate=event.target.value;state.error='';});
   document.querySelector('#edit-ticket')?.addEventListener('click',edit);
   document.querySelector('#header-back')?.addEventListener('click',edit);
@@ -41,7 +51,7 @@ export function bindTicket({state,render,save,edit,startNew,nextForCustomer}) {
   const printSavedTicket=async()=>{try{await printTicketCopies();}catch{state.error='The signed ticket is saved. A photo could not load for printing. Try Print two copies again.';render();}};
   document.querySelector('#ticket-new')?.addEventListener('click',startNew);
   document.querySelector('#sign-ticket')?.addEventListener('click',()=>{
-    try { validateDueDate(ticket.dueDate,ticket.issuedDate); }
+    try { for(const item of ticket.items ?? [ticket])validateDueDate(item.dueDate,ticket.issuedDate); }
     catch(error) { state.error=error.message;render();return; }
     openSignature(ticket,async signature=>{state.ticket=await save({id:ticket.id,dueDate:ticket.dueDate,signature});state.error='';render();window.scrollTo(0,0);},printSavedTicket);
   });
@@ -56,7 +66,7 @@ export function bindTicket({state,render,save,edit,startNew,nextForCustomer}) {
 
 function openSignature(ticket,onSave,onPrint) {
   const dialog=document.createElement('dialog');dialog.className='signature-sheet';
-  dialog.innerHTML=`<div class="sheet-drag-area"><button type="button" class="sheet-handle" aria-label="Close signature sheet"><span></span></button><h2 id="signature-heading">Customer signature</h2></div><p>${escape(ticket.customer.name)} · ${number(ticket)}</p><p class="helper">Total estimate ${usd(ticket.total)} · Due ${date(ticket.dueDate)}</p><p class="helper">Review the ticket, then sign below.</p><label class="field" for="signature-canvas">Sign here</label><canvas id="signature-canvas" aria-label="Draw your signature" tabindex="0"></canvas><button type="button" class="text-button" id="signature-clear">Clear signature</button><p class="helper error" id="signature-error" role="alert"></p><button type="button" class="primary signature-save" id="signature-save-print">Save signed ticket and print</button><button type="button" class="text-button signature-save" id="signature-save">Save signed ticket only</button>`;
+  dialog.innerHTML=`<div class="sheet-drag-area"><button type="button" class="sheet-handle" aria-label="Close signature sheet"><span></span></button><h2 id="signature-heading">Customer signature</h2></div><p>${escape(ticket.customer.name)} · ${number(ticket)}</p><p class="helper">Total estimate ${usd(ticket.total)}${ticket.items?` · ${ticket.items.length} items`: ` · Due ${date(ticket.dueDate)}`}</p><p class="helper">Review all item prices and due dates on the ticket, then sign below.</p><label class="field" for="signature-canvas">Sign here</label><canvas id="signature-canvas" aria-label="Draw your signature" tabindex="0"></canvas><button type="button" class="text-button" id="signature-clear">Clear signature</button><p class="helper error" id="signature-error" role="alert"></p><button type="button" class="primary signature-save" id="signature-save-print">Save signed ticket and print</button><button type="button" class="text-button signature-save" id="signature-save">Save signed ticket only</button>`;
   dialog.setAttribute('aria-labelledby','signature-heading');dialog.setAttribute('tabindex','-1');document.body.append(dialog);dialog.showModal();dialog.focus({preventScroll:true});
   const canvas=dialog.querySelector('canvas'),context=canvas.getContext('2d');
   const message=dialog.querySelector('#signature-error');
