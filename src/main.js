@@ -31,7 +31,7 @@ function startNewPiece() {
 const usd = amount => new Intl.NumberFormat('en-US', {style:'currency',currency:'USD'}).format(amount);
 const escape = (text) => String(text).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 const options = (values, selected) => values.map((value) => `<option${value === selected ? ' selected' : ''}>${escape(value)}</option>`).join('');
-const cameraIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M8 5l1-2h6l1 2h4v15H4V5z"/><circle cx="12" cy="12" r="4"/></svg>';
+const cameraIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M8 6l1-3h6l1 3h3a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V9a3 3 0 0 1 3-3z"/><circle cx="12" cy="13" r="5"/><circle cx="19" cy="9" r=".8" fill="currentColor" stroke="none"/></svg>';
 
 function photoStrip(editable) {
   return `<div class="photos" aria-label="Captured photos">${state.photos.map((photo, index) => `<figure class="photo">
@@ -78,10 +78,9 @@ function captureScreen() {
   if (state.busy) return `<section class="card analysis" aria-busy="true"><h1>Identifying your piece</h1><p role="status">Checking the item, metals, hallmark, and stones. This may take a minute.</p><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></section>${photoStrip(false)}`;
   return `<section class="intro"><h1>Accurate repairs.<br>Satisfied clients.</h1><p>Upload images of the item and AI will handle the rest for you</p></section>
     <section class="card capture"><h2>Photograph one piece</h2><p>Take at least three images: the whole piece, a hallmark close-up, and another angle.</p>
-      <div class="camera"><div class="camera-placeholder">${cameraIcon}<p>Keep the piece in focus<br>and use good light.</p></div></div>
-      <button id="take-photo" class="primary" ${locked || state.photos.length >= MAX_PHOTOS ? 'disabled' : ''}>Take photo</button>
+      <button id="take-photo" type="button" class="camera" aria-label="Take photo" ${locked || state.photos.length >= MAX_PHOTOS ? 'disabled' : ''}><span class="camera-placeholder">${cameraIcon}<span class="camera-guidance">Keep the piece in focus<br>and use good light.</span></span></button>
       <input id="camera-file" type="file" accept="image/*" capture="environment" hidden ${locked || state.photos.length >= MAX_PHOTOS ? 'disabled' : ''} />
-      <label class="upload${locked || state.photos.length >= MAX_PHOTOS ? ' disabled' : ''}">Choose photos<input id="files" type="file" accept="image/*" multiple ${locked || state.photos.length >= MAX_PHOTOS ? 'disabled' : ''} /></label>
+      <label class="upload${locked || state.photos.length >= MAX_PHOTOS ? ' disabled' : ''}">Or Upload Images<input id="files" aria-label="Or Upload Images" type="file" accept="image/*" multiple ${locked || state.photos.length >= MAX_PHOTOS ? 'disabled' : ''} /></label>
       <p class="helper">${state.processing ? 'Preparing photos…' : 'Photos are resized on your phone before analysis.'}</p>
     </section>
     <section class="photo-section"><div class="section-heading"><h2>Your photos</h2><span>${state.photos.length} / ${MAX_PHOTOS}</span></div>
