@@ -1,3 +1,4 @@
+import {selectItem} from '../shared/item-accordion.js';
 import {captureReady, combinedEstimate} from '../shared/multi-intake.js';
 import {suggestedDueDate, validateDueDate} from '../shared/ticket-rules.js';
 import {suggestServices, mergeRepairSuggestions} from '../shared/intake-shortcuts.js';
@@ -33,7 +34,7 @@ state.ticketRequestSignature = null;
 
 function startNewPiece(keepCustomer = false) {
   const customer = keepCustomer === true ? state.customer : null;
-  state.items=[newItem()];state.active=0;state.ticket=null;state.ticketRequestId=null;state.ticketRequestSignature=null;state.customer=customer;state.customerSearch='';state.screen='capture';state.confirmed=false;state.error='';
+  state.items=[newItem()];state.active=0;state.reviewCollapsed=false;state.ticket=null;state.ticketRequestId=null;state.ticketRequestSignature=null;state.customer=customer;state.customerSearch='';state.screen='capture';state.confirmed=false;state.error='';
   render();window.scrollTo(0,0);
 }
 const usd = amount => new Intl.NumberFormat('en-US', {style:'currency',currency:'USD'}).format(amount);
@@ -67,8 +68,8 @@ function render() {
     ${state.error ? `<p class="notice error" role="alert">${escape(state.error)}</p>` : ''}
     ${reviewing ? reviewScreen() : captureScreen()}`;
   bindPhotoLoading(app);
-  document.querySelectorAll('[data-open-item]').forEach(button=>button.addEventListener('click',()=>{state.active=Number(button.dataset.openItem);state.error='';render();}));
-  document.querySelectorAll('[data-delete-item]').forEach(button=>button.addEventListener('click',()=>{state.items.splice(Number(button.dataset.deleteItem),1);if(!state.items.length)state.items=[newItem()];state.active=Math.min(state.active,state.items.length-1);state.ticketRequestId=null;state.error='';render();}));
+  document.querySelectorAll('[data-open-item]').forEach(button=>button.addEventListener('click',()=>{selectItem(state,Number(button.dataset.openItem),button.classList.contains('item-accordion-heading'));state.error='';render();}));
+  document.querySelectorAll('[data-delete-item]').forEach(button=>button.addEventListener('click',()=>{state.items.splice(Number(button.dataset.deleteItem),1);if(!state.items.length)state.items=[newItem()];state.active=Math.min(state.active,state.items.length-1);state.reviewCollapsed=false;state.ticketRequestId=null;state.error='';render();}));
   document.querySelector('#add-item')?.addEventListener('click',()=>{if(!captureReady(state.items[state.active]) || state.busy || state.processing)return;state.items.push(newItem());state.active=state.items.length-1;state.ticketRequestId=null;render();window.scrollTo(0,0);});
   if (!reviewing) {
     document.querySelector('#capture-clear-customer')?.addEventListener('click',()=>{state.customer=null;render();});
@@ -177,12 +178,12 @@ async function analyze() {
    item.estimate=await client.query(api.estimates.calculate,estimateArgs());
   }catch{item.analysisError=BUSY_MESSAGE;}
  }
- state.busy=false;state.active=Math.max(0,state.items.findIndex(item=>item.analysisError || !item.estimate?.complete));state.screen='review';render();window.scrollTo(0,0);
+ state.busy=false;state.active=Math.max(0,state.items.findIndex(item=>item.analysisError || !item.estimate?.complete));state.screen='review';state.reviewCollapsed=false;render();window.scrollTo(0,0);
 }
 function manualDetails(){return {itemType:'Unknown',metals:[{metal:'Unknown',purity:'Unknown',hallmark:''}],stones:['Unknown']};}
 function itemNavigation(){return `<nav class="item-navigation" aria-label="Items">${state.items.map((item,index)=>`<button type="button" class="${index===state.active?'selected':''}" data-open-item="${index}" ${state.busy || state.processing || state.repairBusy?'disabled':''}>Item ${index+1}</button>`).join('')}</nav><div class="section-heading"><p class="helper">Photos belong only to this item.</p><button type="button" class="text-button danger" data-delete-item="${state.active}" ${state.busy || state.processing || state.repairBusy?'disabled':''}>Remove item</button></div>`;}
 function grandTotal(){const estimate=combinedEstimate(state.items);return `<p class="estimate-total">Combined estimate · ${state.items.length} item${state.items.length===1?'':'s'}<strong>${estimate.complete?usd(estimate.total):'Review all items'}</strong></p>`;}
-function accordionHeader(item,index){return `<button type="button" class="item-accordion-heading" data-open-item="${index}" aria-expanded="${index===state.active}" ${state.repairBusy || state.processing?'disabled':''}>${item.photos[0]?`<img src="${item.photos[0].data}" alt="" />`:''}<span>Item ${index+1} · ${escape(item.details?.itemType ?? 'Needs review')}<small>${item.analysisError?'Needs review':item.estimate?.complete?usd(item.estimate.total):'Complete this estimate'}</small></span><span aria-hidden="true">${index===state.active?'−':'+'}</span></button>`;}
+function accordionHeader(item,index){return `<button type="button" class="item-accordion-heading" data-open-item="${index}" aria-expanded="${index===state.active && !state.reviewCollapsed}" ${state.repairBusy || state.processing?'disabled':''}>${item.photos[0]?`<img src="${item.photos[0].data}" alt="" />`:''}<span>Item ${index+1} · ${escape(item.details?.itemType ?? 'Needs review')}<small>${item.analysisError?'Needs review':item.estimate?.complete?usd(item.estimate.total):'Complete this estimate'}</small></span><span aria-hidden="true">${index===state.active && !state.reviewCollapsed?'−':'+'}</span></button>`;}
 // Grow both boxes together so a longer damage description stays readable.
 function alignRepairFields() {
   document.querySelectorAll('.repair-fields').forEach(row => {
@@ -319,7 +320,7 @@ function itemReviewScreen() {
   const details = state.details;
   const expanded=state.itemDetailsOpen ?? (details.itemType==='Unknown' || details.metals.some(metal=>metal.metal==='Unknown' || metal.purity==='Unknown') || details.stones.includes('Unknown'));
   return `${state.analysisError?`<p class="notice error">${escape(state.analysisError)}</p><button type="button" id="retry-item" class="text-button">Retry this item</button><p class="helper">Or enter this item’s details and services below.</p>`:''}${itemNavigation()}
-    <form id="item-form" class="card details">
+    <form id="item-form" class="card details" novalidate>
       <div class="section-heading"><h2>Item information</h2><button type="button" id="toggle-item-details" class="text-button" aria-expanded="${expanded}" aria-controls="item-edit-fields">${expanded ? 'Close details' : 'Edit details'}</button></div>
       <div class="item-summary" ${expanded ? 'hidden' : ''}><p>${escape(details.itemType)}</p><p>${details.metals.map(metal=>`${escape(metal.metal)} · ${escape(metal.purity)}`).join('<br>')}</p><p class="helper">Stones: ${details.stones.map(escape).join(', ')}</p><p class="helper">Check these details against the piece.</p></div>
       <div id="item-edit-fields" ${expanded ? '' : 'hidden'}><div class="section-heading">${details.metals.length < 3 ? '<button type="button" id="add-metal" class="text-button">Add metal</button>' : ''}</div><div class="item-fields"><label class="field">Item type<select id="item-type">${options(ITEM_TYPES, details.itemType)}</select></label>
@@ -335,7 +336,7 @@ function itemReviewScreen() {
     <section class="photo-section"><div class="section-heading"><h2>Captured images</h2><button id="back" class="text-button">Review photos</button></div>${photoStrip(false)}</section>
     `;
 }
-function reviewScreen(){return `<section class="intro"><h1>Review Estimate</h1><p>Review each item before confirming the combined ticket.</p></section>${customerCard(state)}${state.items.map((item,index)=>`<section class="item-accordion">${accordionHeader(item,index)}${index===state.active?`<div class="item-accordion-body">${itemReviewScreen()}</div>`:''}</section>`).join('')}<section id="combined-total" class="card">${grandTotal()}</section><footer class="actions"><button type="submit" form="item-form" class="primary" ${state.repairBusy?'disabled':''}>Confirm estimate</button></footer>`;
+function reviewScreen(){return `<section class="intro"><h1>Review Estimate</h1><p>Review each item before confirming the combined ticket.</p></section>${customerCard(state)}${state.items.map((item,index)=>`<section class="item-accordion">${accordionHeader(item,index)}${index===state.active?`<div class="item-accordion-body" ${state.reviewCollapsed ? 'hidden' : ''}>${itemReviewScreen()}</div>`:''}</section>`).join('')}<section id="combined-total" class="card">${grandTotal()}</section><footer class="actions"><button type="submit" form="item-form" class="primary" ${state.repairBusy?'disabled':''}>Confirm estimate</button></footer>`;
 }
 
 function bindReview() {
@@ -496,7 +497,7 @@ function bindReview() {
      await client.action(api.combinedTickets.addItem,{id,position,details:item.details,photos:item.photos.map(({data,hallmark})=>({data,hallmark})),repairs:item.repairs.map((repair,index)=>({damage:repair.damage,serviceCode:repair.serviceCode,photo:repair.photo,...amounts.repairs[index]})),rush:item.rush,rhodium:item.rhodium,dueDate:item.dueDate});
     }
     await client.mutation(api.combinedTickets.finish,{id});state.ticket=await loadTicket(id);state.screen='ticket';state.confirmed=true;state.error='';
-   }catch(error){state.error=error.message || 'Could not save the intake. Check your connection and try again.';}
+   }catch(error){state.reviewCollapsed=false;state.error=error.message || 'Could not save the intake. Check your connection and try again.';}
    finally{app.inert=false;render();window.scrollTo(0,0);}
   });
   document.querySelector('#back').addEventListener('click', returnToPhotos);
