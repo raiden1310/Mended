@@ -97,3 +97,5 @@ Camera capture (approved 5 Oct): Take photo opens the phone’s native rear-came
 Capture card (approved 5 Oct): The whole camera card is the Take photo action and opens the native camera. Keep “Keep the piece in focus and use good light.” inside it. Use a rounded camera outline with a large circular lens and small indicator dot matching the supplied icon. Beneath it, Or Upload Images opens the existing-image picker; no separate Take photo or Choose photos action.
 
 Capture card copy (approved 5 Oct): Add “Click here to begin intake” beneath the focus/light guidance inside the same clickable card, using the same font, size, weight, and color.
+
+Header (approved 5 Oct): Replace the Mended text with the supplied design/logo/svg/mended_horizontal_full-color.svg logo, preserving its proportions. Label the first page Repair intake.

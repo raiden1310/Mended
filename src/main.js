@@ -1,3 +1,4 @@
+import mendedLogo from '../design/logo/svg/mended_horizontal_full-color.svg';
 import { REPAIR_SERVICES, searchServices } from '../shared/repair-catalog.js';
 import { startSplash } from './splash.js';
 import { customerCard, bindCustomer } from './customer-picker.js';
@@ -44,11 +45,11 @@ function photoStrip(editable) {
 function render() {
   const reviewing = state.screen === 'review';
   if (state.screen === 'ticket') {
-    app.innerHTML = `<header class="header"><span class="brand">Mended</span><span class="step">Repair ticket</span></header>${state.error?`<p class="notice error" role="alert">${escape(state.error)}</p>`:''}${ticketScreen(state.ticket)}`;
+    app.innerHTML = `<header class="header"><img class="brand" src="${mendedLogo}" alt="Mended" width="171" height="32" /><span class="step">Repair ticket</span></header>${state.error?`<p class="notice error" role="alert">${escape(state.error)}</p>`:''}${ticketScreen(state.ticket)}`;
     bindTicket({state,render,startNew:startNewPiece,edit:()=>{state.screen='review';state.confirmed=false;state.ticketRequestId=null;state.error='';render();window.scrollTo(0,0);},save:async args=>{await client.mutation(api.tickets.sign,args);const ticket=await client.query(api.tickets.get,{id:args.id});if(!ticket)throw new Error('Ticket not found');return ticket;}});
     return;
   }
-  app.innerHTML = `<header class="header"><span class="brand">Mended</span><span class="step">${reviewing ? 'Review estimate' : 'Capture item'}</span></header>
+  app.innerHTML = `<header class="header"><img class="brand" src="${mendedLogo}" alt="Mended" width="171" height="32" /><span class="step">${reviewing ? 'Review estimate' : 'Repair intake'}</span></header>
     ${state.error ? `<p class="notice error" role="alert">${escape(state.error)}</p>` : ''}
     ${reviewing ? reviewScreen() : captureScreen()}`;
   if (!reviewing) {

@@ -64,8 +64,8 @@ input, select { caret-color: var(--brand); }
 #splash img, #splash > svg { position: absolute; width: min(100vw, 600px); height: min(100vw, 600px); object-fit: cover; }
 #splash.ready img { visibility: hidden; }
 #app { max-width: 600px; margin: auto; padding: 0 20px calc(32px + env(safe-area-inset-bottom)); }
-.header { display: flex; justify-content: space-between; align-items: center; padding: 24px 0; border-bottom: 1px solid #6B687033; }
-.brand { color: var(--ink); font-size: 18px; line-height: 24px; font-weight: 600; }
+.header { gap: 16px; display: flex; justify-content: space-between; align-items: center; padding: 24px 0; border-bottom: 1px solid #6B687033; }
+.brand { display: block; width: 171px; max-width: 50%; height: auto; }
 .step { font-size: 13px; line-height: 18px; color: var(--muted); font-weight: 500; }
 .intro { padding: 32px 0 24px; }
 h1, h2, legend { font-size: 18px; line-height: 24px; font-weight: 600; margin: 0; color: var(--ink); }
