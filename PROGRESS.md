@@ -4,3 +4,4 @@
 2026-10-05 — Milestone 4 confirmed working by the user: numbered repair tickets, editable in-house due dates, finger signatures saved in Convex, and labeled store/customer print copies.
 2026-10-05 — Core flow ends at milestone 4. Milestone 5 removed from PLAN.md at the user's request.
 2026-10-05 — Native camera capture confirmed working by the user on iPhone Safari: one photo at a time, native accept/retake controls, and existing-photo uploads retained.
+2026-10-05 — User approved shipping all pending intake changes: clickable native-camera card, Or Upload Images, begin-intake hint, scan-style camera icon, smaller supplied Mended logo, Repair intake header, Get estimate action, Mended intro wording, and top-right photo remove crosses.
