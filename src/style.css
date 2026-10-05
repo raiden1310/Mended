@@ -208,3 +208,19 @@ textarea:focus-visible { outline: 2px solid var(--brand); outline-offset: 4px; }
   .card, .ticket-summary, .ticket-section:not(.card), .ticket-dates, .estimate-total { box-shadow: none; background: #FFFFFF; border-radius: 0; }
   .print-ticket .ticket-summary, .print-ticket .ticket-section:not(.card), .print-ticket .ticket-dates { padding: 0; }
 }
+
+/* Photo decoding and sheet dismissal fixes. */
+.photo-preview { position: relative; width: 100%; aspect-ratio: 1; border-radius: 16px; overflow: hidden; background: #F7F5F1; }
+.photo-preview img, .ticket-photos .photo-preview img { width: 100%; height: 100%; aspect-ratio: 1; object-fit: cover; opacity: 0; transform: translateZ(0); }
+.photo-preview[data-state="ready"] img { opacity: 1; }
+.photo-loading, .photo-retry { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; padding: 12px; text-align: center; }
+.photo-preview:not([data-state="loading"]) .photo-loading { display: none; }
+.ticket > .notice { margin: 0 0 24px; }
+.signature-sheet { padding-top: 0; transition: transform 180ms ease-out; }
+.signature-sheet.dragging { transition: none; }
+.sheet-drag-area { touch-action: none; }
+.sheet-handle { width: 100%; min-height: 44px; display: grid; place-items: center; border: 0; background: transparent; padding: 0; cursor: grab; }
+.sheet-handle span { display: block; width: 40px; height: 4px; border-radius: 4px; background: #6B687066; }
+.sheet-drag-area h2 { padding-bottom: 8px; }
+@media (prefers-reduced-motion: reduce) { .signature-sheet { transition: none; } }
+@media print { .ticket > .notice { display: none; } }

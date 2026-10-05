@@ -1,3 +1,4 @@
+import { photoPreview } from './photo-loading.js';
 import { validateDueDate, validateSignature, signaturePoint } from '../shared/ticket-rules.js';
 
 const escape = text => String(text).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[char]);
@@ -20,7 +21,7 @@ function contents(ticket, printable=false) {
     <section class="card ticket-section"><h2>Item information</h2><p>${escape(ticket.details.itemType)}</p><p>${ticket.details.metals.map(metal=>`${escape(metal.metal)} · ${escape(metal.purity)}`).join('<br>')}</p><p class="helper">Stones: ${ticket.details.stones.map(escape).join(', ')}</p>${ticket.details.metals.filter(metal=>metal.hallmark).map(metal=>`<p class="helper">Hallmark: ${escape(metal.hallmark)}</p>`).join('')}</section>
     <section class="card ticket-section"><h2>Repair services</h2>${ticket.repairs.map((repair,index)=>`<div class="ticket-repair"><h3>${escape(repair.serviceName)}</h3><p>${escape(repair.damage)}</p><div class="ticket-price-row"><span>Service price</span><span>${usd(repair.amount)}</span></div>${repair.extra ? `<div class="ticket-price-row"><span>Additional fee</span><span>${usd(repair.extra)}</span></div>` : ''}<p class="helper">${repair.serviceCode}${repair.photo ? ` · Photo ${repair.photo}` : ' · Associate entry'}</p></div>`).join('')}
     <div class="ticket-totals"><div class="ticket-price-row"><span>Subtotal</span><span>${usd(ticket.subtotal)}</span></div>${ticket.rush?'<div class="ticket-price-row"><span>Rush fee</span><span>$50.00</span></div>':''}${ticket.rhodium?'<div class="ticket-price-row"><span>Re-rhodium fee</span><span>$10.00</span></div>':''}<div class="ticket-price-row total"><span>Total estimate</span><span>${usd(ticket.total)}</span></div></div></section>
-    <section class="ticket-section"><h2>Captured images</h2><div class="ticket-photos">${ticket.photos.map((photo,index)=>`<figure>${photo.url ? `<img src="${escape(photo.url)}" alt="Jewelry photo ${index+1}" />` : '<p>Photo unavailable</p>'}<figcaption>Photo ${index+1}${photo.hallmark?' · Hallmark':''}</figcaption></figure>`).join('')}</div></section>
+    <section class="ticket-section"><h2>Captured images</h2><div class="ticket-photos">${ticket.photos.map((photo,index)=>`<figure>${photo.url ? printable ? `<img src="${escape(photo.url)}" alt="Jewelry photo ${index+1}" />` : photoPreview(photo.url, `Jewelry photo ${index+1}`, escape) : '<p>Photo unavailable</p>'}<figcaption>Photo ${index+1}${photo.hallmark?' · Hallmark':''}</figcaption></figure>`).join('')}</div></section>
     ${ticket.status==='signed'?`<section class="card ticket-section"><h2>Customer signature</h2><div class="saved-signature">${signatureImage(ticket.signature)}</div><p class="helper">Signed ${escape(new Date(ticket.signedAt).toLocaleString())}</p></section>`:''}`;
 }
 
@@ -53,7 +54,7 @@ export function bindTicket({state,render,save,edit,startNew}) {
 
 function openSignature(ticket,onSave) {
   const dialog=document.createElement('dialog');dialog.className='signature-sheet';
-  dialog.innerHTML=`<div class="section-heading"><h2 id="signature-heading">Customer signature</h2><button type="button" class="text-button" id="signature-cancel">Cancel</button></div><p>${escape(ticket.customer.name)} · ${number(ticket)}</p><p class="helper">Total estimate ${usd(ticket.total)} · Due ${date(ticket.dueDate)}</p><p class="helper">Review the ticket, then sign below.</p><label class="field" for="signature-canvas">Sign here</label><canvas id="signature-canvas" aria-label="Draw your signature" tabindex="0"></canvas><button type="button" class="text-button" id="signature-clear">Clear signature</button><p class="helper error" id="signature-error" role="alert"></p><button type="button" class="primary" id="signature-save">Save signed ticket</button>`;
+  dialog.innerHTML=`<div class="sheet-drag-area"><button type="button" class="sheet-handle" aria-label="Close signature sheet"><span></span></button><h2 id="signature-heading">Customer signature</h2></div><p>${escape(ticket.customer.name)} · ${number(ticket)}</p><p class="helper">Total estimate ${usd(ticket.total)} · Due ${date(ticket.dueDate)}</p><p class="helper">Review the ticket, then sign below.</p><label class="field" for="signature-canvas">Sign here</label><canvas id="signature-canvas" aria-label="Draw your signature" tabindex="0"></canvas><button type="button" class="text-button" id="signature-clear">Clear signature</button><p class="helper error" id="signature-error" role="alert"></p><button type="button" class="primary" id="signature-save">Save signed ticket</button>`;
   dialog.setAttribute('aria-labelledby','signature-heading');document.body.append(dialog);dialog.showModal();
   const canvas=dialog.querySelector('canvas'),context=canvas.getContext('2d');
   const message=dialog.querySelector('#signature-error');
@@ -78,15 +79,40 @@ function openSignature(ticket,onSave) {
   });
   for(const name of ['pointerup','pointercancel','lostpointercapture'])canvas.addEventListener(name,event=>{if(event.pointerId===pointerId){stroke=null;pointerId=null;}});
   dialog.querySelector('#signature-clear').addEventListener('click',()=>{if(!saving){strokes=[];stroke=null;pointerId=null;pointCount=0;message.textContent='';draw();}});
-  dialog.querySelector('#signature-cancel').addEventListener('click',()=>{if(!saving)dialog.close();});
+  const handle=dialog.querySelector('.sheet-handle');
+  const dragArea=dialog.querySelector('.sheet-drag-area');
+  let drag=null;
+  handle.addEventListener('click',()=>{if(!saving && !drag)dialog.close();});
+  dragArea.addEventListener('pointerdown',event=>{
+    if(saving || (event.pointerType==='mouse' && event.button!==0))return;
+    event.preventDefault();
+    drag={id:event.pointerId,start:event.clientY,distance:0};
+    dragArea.setPointerCapture(event.pointerId);
+    dialog.classList.add('dragging');
+  });
+  dragArea.addEventListener('pointermove',event=>{
+    if(!drag || event.pointerId!==drag.id)return;
+    drag.distance=Math.max(0,event.clientY-drag.start);
+    dialog.style.transform=`translateY(${drag.distance}px)`;
+  });
+  const finishDrag=event=>{
+    if(!drag || event.pointerId!==drag.id)return;
+    const dismiss=event.type==='pointerup' && drag.distance>=90 && !saving;
+    // Suppress the click after a drag so a short pull snaps back.
+    const moved=drag.distance>5;
+    drag=null;dialog.classList.remove('dragging');dialog.style.transform='';
+    if(moved){const prevent=event=>{event.preventDefault();event.stopImmediatePropagation();};handle.addEventListener('click',prevent,{once:true,capture:true});setTimeout(()=>handle.removeEventListener('click',prevent,true),0);}
+    if(dismiss)dialog.close();
+  };
+  for(const name of ['pointerup','pointercancel','lostpointercapture'])dragArea.addEventListener(name,finishDrag);
   dialog.addEventListener('cancel',event=>{if(saving)event.preventDefault();});
   dialog.addEventListener('close',()=>{observer.disconnect();dialog.remove();});
   dialog.querySelector('#signature-save').addEventListener('click',async event=>{
     if(saving)return;
     try{validateSignature(strokes);}catch(error){message.textContent=error.message;return;}
-    saving=true;event.currentTarget.disabled=true;dialog.querySelector('#signature-clear').disabled=true;dialog.querySelector('#signature-cancel').disabled=true;
+    saving=true;event.currentTarget.disabled=true;dialog.querySelector('#signature-clear').disabled=true;handle.disabled=true;
     const button=dialog.querySelector('#signature-save');button.textContent='Saving signed ticket…';
     try {await onSave(strokes);dialog.close();}
-    catch {message.textContent='Could not save the signed ticket. Your signature is still here. Try again.';saving=false;button.disabled=false;button.textContent='Save signed ticket';dialog.querySelector('#signature-clear').disabled=false;dialog.querySelector('#signature-cancel').disabled=false;}
+    catch {message.textContent='Could not save the signed ticket. Your signature is still here. Try again.';saving=false;button.disabled=false;button.textContent='Save signed ticket';dialog.querySelector('#signature-clear').disabled=false;handle.disabled=false;}
   });
 }

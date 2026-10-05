@@ -1,3 +1,4 @@
+import { photoPreview, bindPhotoLoading } from './photo-loading.js';
 import mendedLogo from '../design/logo/svg/mended_horizontal_full-color.svg';
 import { REPAIR_SERVICES, searchServices } from '../shared/repair-catalog.js';
 import { startSplash } from './splash.js';
@@ -36,7 +37,7 @@ const cameraIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" s
 
 function photoStrip(editable) {
   return `<div class="photos" aria-label="Captured photos">${state.photos.map((photo, index) => `<figure class="photo">
-    <img src="${photo.data}" alt="Jewelry photo ${index + 1}${photo.hallmark ? ', hallmark close-up' : ''}" />
+    ${photoPreview(photo.data, `Jewelry photo ${index + 1}${photo.hallmark ? ', hallmark close-up' : ''}`, escape)}
     <figcaption>Photo ${index + 1}${photo.hallmark ? ' · Hallmark' : ''}</figcaption>
     ${editable ? `<button class="text-button hallmark${photo.hallmark ? ' selected' : ''}" data-mark="${photo.id}" aria-pressed="${photo.hallmark}">${photo.hallmark ? 'Hallmark photo' : 'Mark as hallmark'}</button><button class="remove" data-remove="${photo.id}" aria-label="Remove photo ${index + 1}"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="16" fill="#A33A43"/><path d="M11 11l10 10m0-10L11 21" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"/></svg></button>` : ''}
   </figure>`).join('')}</div>`;
@@ -52,12 +53,14 @@ function render() {
   const reviewing = state.screen === 'review';
   if (state.screen === 'ticket') {
     app.innerHTML = `${pageHeader('Repair ticket', state.ticket.status === 'signed' ? '' : 'Edit estimate')}${state.error?`<p class="notice error" role="alert">${escape(state.error)}</p>`:''}${ticketScreen(state.ticket)}`;
+    bindPhotoLoading(app);
     bindTicket({state,render,startNew:startNewPiece,edit:()=>{state.screen='review';state.confirmed=false;state.ticketRequestId=null;state.error='';render();window.scrollTo(0,0);},save:async args=>{await client.mutation(api.tickets.sign,args);const ticket=await client.query(api.tickets.get,{id:args.id});if(!ticket)throw new Error('Ticket not found');return ticket;}});
     return;
   }
   app.innerHTML = `${pageHeader(reviewing ? 'Review estimate' : 'Repair intake', reviewing ? 'Review photos' : '')}
     ${state.error ? `<p class="notice error" role="alert">${escape(state.error)}</p>` : ''}
     ${reviewing ? reviewScreen() : captureScreen()}`;
+  bindPhotoLoading(app);
   if (!reviewing) {
     document.querySelector('#take-photo')?.addEventListener('click', () => document.querySelector('#camera-file').click());
     document.querySelector('#camera-file')?.addEventListener('change', importFiles);
