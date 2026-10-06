@@ -100,7 +100,7 @@ function captureScreen() {
   return `<section class="intro"><h1>Accurate repairs.<br>Satisfied clients.</h1><p>Upload images of the item and Mended will handle the rest for you</p></section>
     ${state.customer ? `<p class="notice">Next piece for ${escape(state.customer.name)} <button id="capture-clear-customer" type="button" class="text-button">Change customer</button></p>` : ''}
     ${itemNavigation()}<section class="card capture"><h2>Photograph item ${state.active+1}</h2><p>Take at least three images: the whole piece, a hallmark close-up, and another angle.</p>
-      <button id="take-photo" type="button" class="camera" aria-label="Take photo" ${locked || state.photos.length >= MAX_PHOTOS ? 'disabled' : ''}><span class="camera-placeholder">${cameraIcon}<span class="camera-guidance">Keep the piece in focus<br>and use good light.</span><span class="camera-guidance">Click here to begin intake</span></span></button>
+      <div class="capture-tray"><button id="take-photo" type="button" class="camera" aria-label="Take photo" ${locked || state.photos.length >= MAX_PHOTOS ? 'disabled' : ''}><span class="camera-placeholder">${cameraIcon}<span class="camera-guidance">Keep the piece in focus<br>and use good light.</span><span class="camera-guidance">Click here to begin intake</span></span></button></div>
       <input id="camera-file" type="file" accept="image/*" capture="environment" hidden ${locked || state.photos.length >= MAX_PHOTOS ? 'disabled' : ''} />
       <label class="upload${locked || state.photos.length >= MAX_PHOTOS ? ' disabled' : ''}">Or Upload Images<input id="files" aria-label="Or Upload Images" type="file" accept="image/*" multiple ${locked || state.photos.length >= MAX_PHOTOS ? 'disabled' : ''} /></label>
       <p class="helper">${state.processing ? 'Preparing photos…' : 'Photos are resized on your phone before analysis.'}</p>
@@ -300,7 +300,7 @@ function servicesCard() {
       <div class="repair-fields"><label class="field">Damage<textarea form="item-form" id="damage-${repair.id}" data-damage="${repair.id}" maxlength="160" rows="1" required placeholder="Describe the damage">${escape(repair.damage)}</textarea></label>
       <div class="service-picker" data-picker="${repair.id}"><label class="field" for="service-${repair.id}">Repair service</label><input id="service-${repair.id}" type="search" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="service-options-${repair.id}" autocomplete="off" placeholder="Search services" />
       <div id="service-options-${repair.id}" class="service-options" role="listbox" aria-label="Repair services" hidden></div>
-      <p class="selected-service">${repair.serviceCode ? escape(REPAIR_SERVICES.find(service => service.code === repair.serviceCode)?.name || '') : 'Choose a service from the list.'}</p></div></div>
+      <p class="selected-service ${repair.serviceCode ? 'is-selected' : ''}">${repair.serviceCode ? escape(REPAIR_SERVICES.find(service => service.code === repair.serviceCode)?.name || '') : 'Choose a service from the list.'}</p></div></div>
       ${!repair.serviceCode ? `<div class="quick-services" aria-label="Suggested catalog choices">${suggestServices(repair.damage,state.details.itemType).map(service=>`<button type="button" class="quick-service" data-quick-service="${repair.id}" data-code="${service.code}">${escape(service.name)}<small>${service.code}</small></button>`).join('')}</div>` : ''}
       ${state.details.metals.length > 1 ? `<fieldset class="service-metals"><legend>Metal(s) being repaired</legend><button type="button" class="text-button" data-all-metals="${repair.id}">All metals</button><div class="stones">${state.details.metals.map((metal,metalIndex)=>`<label class="metal-choice"><input type="checkbox" data-repair-metal="${repair.id}" value="${metalIndex}" ${(repair.metalIndexes ?? []).includes(metalIndex) ? 'checked' : ''} />${escape(metal.metal)} · ${escape(metal.purity)}</label>`).join('')}</div><p class="helper">Choose one or more. Multiple metals use 80% of the sum of their service prices.</p>${state.repairs.length > 1 && repair.metalIndexes?.length ? `<button type="button" class="text-button" data-apply-metals="${repair.id}">Apply these metals to all services</button>` : ''}</fieldset>` : ''}
       <div class="price-fields">
@@ -419,7 +419,9 @@ function bindReview() {
       const amount=document.querySelector(`[data-amount="${repair.id}"]`); if(amount) amount.disabled=false;
       const extra=document.querySelector(`[data-extra="${repair.id}"]`); if(extra) extra.value=0;
       document.querySelector(`[data-reset-price="${repair.id}"]`).hidden=true;
-      picker.querySelector('.selected-service').textContent = service.name;
+      const selectedService = picker.querySelector('.selected-service');
+      selectedService.textContent = service.name;
+      selectedService.classList.add('is-selected');
       input.value = ''; close(); markChanged(); refreshPrices();
     }
     function show() {

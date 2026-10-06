@@ -262,3 +262,45 @@ textarea:focus-visible { outline: 2px solid var(--brand); outline-offset: 4px; }
 .ticket-item { margin:28px 0; }
 .ticket-item > .field { margin:12px 0 24px; }
 @media print { .ticket-item { break-before:auto; } .ticket-item > .section-heading { break-after:avoid; } }
+
+/* Tactile capture and confirmed choices, within the Mended palette. */
+.capture-tray {
+  margin: 24px 0 16px;
+  padding: 12px;
+  border-radius: 28px;
+  background: #F7F5F1;
+  box-shadow: inset 3px 3px 8px #241A2B14, inset -3px -3px 8px #FFFFFF;
+}
+.capture-tray .camera {
+  margin: 0;
+  background: #F7F5F1;
+  box-shadow: 4px 4px 10px #241A2B1A, -4px -4px 10px #FFFFFF;
+  transition: box-shadow 140ms ease, transform 140ms ease;
+}
+.capture-tray .camera:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: inset 3px 3px 7px #241A2B1A, inset -3px -3px 7px #FFFFFF;
+}
+.capture-tray .camera:disabled { box-shadow: none; }
+.stone, .metal-choice, .fee-choice, .quick-service {
+  transition: box-shadow 140ms ease;
+}
+.stone:has(input:checked), .metal-choice:has(input:checked),
+.fee-choice:has(input:checked), .selected-service.is-selected {
+  color: var(--brand);
+  outline: 2px solid var(--brand);
+  outline-offset: -2px;
+  box-shadow: inset 2px 2px 5px #241A2B14, inset -2px -2px 5px #FFFFFF;
+}
+.stone:has(input:focus-visible), .metal-choice:has(input:focus-visible),
+.fee-choice:has(input:focus-visible) { outline: 2px solid var(--brand); outline-offset: 3px; }
+.selected-service.is-selected {
+  background: #F7F5F1;
+  border-radius: 12px;
+  padding: 12px;
+}
+.quick-service:active { box-shadow: inset 2px 2px 5px #241A2B14, inset -2px -2px 5px #FFFFFF; }
+@media (prefers-reduced-motion: reduce) {
+  .capture-tray .camera, .stone, .metal-choice, .fee-choice, .quick-service { transition: none; }
+  .capture-tray .camera:active:not(:disabled) { transform: none; }
+}
