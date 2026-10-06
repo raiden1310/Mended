@@ -1,3 +1,4 @@
+import {revealError} from './error-navigation.js';
 import {printTicketCopies} from './print-ticket.js';
 import { photoPreview } from './photo-loading.js';
 import { validateDueDate, validateSignature, signaturePoint } from '../shared/ticket-rules.js';
@@ -121,10 +122,10 @@ function openSignature(ticket,onSave,onPrint) {
   dialog.addEventListener('close',()=>{observer.disconnect();dialog.remove();});
   dialog.querySelectorAll('.signature-save').forEach(saveButton=>saveButton.addEventListener('click',async event=>{
     if(saving)return;
-    try{validateSignature(strokes);}catch(error){message.textContent=error.message;return;}
+    try{validateSignature(strokes);}catch(error){message.textContent=error.message;revealError(message);return;}
     saving=true;dialog.querySelectorAll('.signature-save').forEach(button=>{button.disabled=true;});dialog.querySelector('#signature-clear').disabled=true;handle.disabled=true;
     const button=event.currentTarget;const label=button.textContent;const printAfter=button.id==='signature-save-print';button.textContent='Saving signed ticket…';
     try {await onSave(strokes);dialog.close();if(printAfter)await onPrint();}
-    catch {message.textContent='Could not save the signed ticket. Your signature is still here. Try again.';saving=false;dialog.querySelectorAll('.signature-save').forEach(button=>{button.disabled=false;});button.textContent=label;dialog.querySelector('#signature-clear').disabled=false;handle.disabled=false;}
+    catch {message.textContent='Could not save the signed ticket. Your signature is still here. Try again.';revealError(message);saving=false;dialog.querySelectorAll('.signature-save').forEach(button=>{button.disabled=false;});button.textContent=label;dialog.querySelector('#signature-clear').disabled=false;handle.disabled=false;}
   }));
 }

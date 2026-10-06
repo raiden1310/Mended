@@ -1,3 +1,4 @@
+import {revealError} from './error-navigation.js';
 const escape = text => String(text).replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[char]);
 
 export function customerCard(state) {
@@ -32,7 +33,10 @@ export function bindCustomer({ state, searchCustomers, markChanged, render }) {
         button.addEventListener('click', () => select(matches[Number(button.dataset.customer)]));
       });
     } catch {
-      if (current === request && input.isConnected) list.innerHTML = '<p class="helper" role="status">Could not search customers. Try again.</p>';
+      if (current === request && input.isConnected) {
+        list.innerHTML = '<p class="helper" role="alert">Could not search customers. Try again.</p>';
+        revealError(list.firstElementChild);
+      }
     }
   }
   input.addEventListener('input', () => { request++; matches = []; active = -1; list.hidden = true; input.setAttribute('aria-expanded', 'false'); input.removeAttribute('aria-activedescendant'); state.customerSearch = input.value; clearTimeout(timer); timer = setTimeout(search, 150); });
