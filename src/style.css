@@ -306,3 +306,17 @@ textarea:focus-visible { outline: 2px solid var(--brand); outline-offset: 4px; }
 }
 
 [role="alert"] { scroll-margin-top: 16px; }
+
+/* Paper uses compact spacing; keep the signature and its approval note together. */
+@media print {
+  #app { max-width: none; padding: 0; }
+  .print-ticket p { margin-top: 6px; }
+  .print-ticket h3 { margin: 0; font-size: 18px; line-height: 24px; }
+  .print-ticket .ticket-item { margin: 16px 0; }
+  .print-ticket .ticket-section { margin-top: 12px; }
+  .print-ticket .ticket-repair { padding: 8px 0; }
+  .print-ticket .ticket-totals .total { margin-top: 12px; }
+  .print-ticket .ticket-photos { margin-top: 8px; }
+  .print-ticket .ticket-signature { break-inside: avoid; }
+  .print-ticket .saved-signature svg { height: 64px; }
+}

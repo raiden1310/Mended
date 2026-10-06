@@ -9,3 +9,4 @@
 2026-10-06 — User approved shipping multi-metal service pricing, fewer intake taps, and multi-item capture/review with separate AI analysis, per-item fees and due dates, and one combined signed ticket; 25 tests and the development AI/save flow passed. Visual Chrome testing remained unavailable.
 2026-10-06 — User confirmed the accordion fix: minus collapses the selected item, plus reopens it, edits are retained, and confirmation remains available; 26 tests passed. Approved for production.
 2026-10-06 — User approved production shipping of tactile capture and selected-choice styling, disappearing service suggestions after selection, complete error scrolling, and Remove item only for multiple items; 31 checks passed and DESIGN.md updated.
+2026-10-06 — User approved shipping the print overflow fix: compact print-only spacing and a grouped signature/approval note; Chrome verified two complete pages for the one-item test ticket, and all 31 checks passed.
